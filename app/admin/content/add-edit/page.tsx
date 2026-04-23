@@ -1,15 +1,18 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { db } from "@/lib/firebase"; 
+import { auth, db } from "@/lib/firebase"; 
+import { onAuthStateChanged } from "firebase/auth";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, serverTimestamp } from "firebase/firestore";
 import { 
   ArrowLeft, UploadCloud, FileType, CheckCircle2, 
-  AlertCircle, Image as ImageIcon, Save, Check
+  AlertCircle, Image as ImageIcon, Save, Check, Lock
 } from "lucide-react";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter } from "next/router";
+import { useSearchParams } from "next/navigation";
 
+const ALLOWED_ROLES = ["admin", "sadmin", "badmin", "hoadmin"];
 // Wrap in Suspense because we are using useSearchParams()
 export default function AddEditContentWrapper() {
   return (
@@ -28,6 +31,29 @@ function AddEditContentForm() {
   const searchParams = useSearchParams();
   const contentType = searchParams.get("type") || "subject";
   const editId = searchParams.get("id"); // Get ID if we are editing!
+
+  // --- Security State ---
+  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
+  const [adminRole, setAdminRole] = useState<string>("");
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!user) return router.push("/auth");
+      try {
+        const userDoc = await getDoc(doc(db, "users", user.uid));
+        const role = userDoc.data()?.role || "user";
+        setAdminRole(role);
+        if (!ALLOWED_ROLES.includes(role)) {
+          setIsAuthorized(false);
+        } else {
+          setIsAuthorized(true);
+        }
+      } catch {
+        setIsAuthorized(false);
+      }
+    });
+    return () => unsubscribe();
+  }, [router]);
 
   // --- Form State ---
   const [title, setTitle] = useState("");
@@ -210,11 +236,24 @@ function AddEditContentForm() {
     }
   };
 
-  if (isFetching) {
+  // 1. Check Authorization First
+  if (isAuthorized === false) {
     return (
-      <div className="flex flex-col items-center justify-center p-20">
+      <div className="min-h-screen flex flex-col items-center justify-center p-4 text-center">
+        <Lock className="w-16 h-16 text-red-500 mb-4" />
+        <h1 className="text-3xl font-black text-slate-800 mb-2">Access Denied</h1>
+        <p className="text-slate-500 font-medium">Your role (<span className="uppercase font-bold text-red-500">{adminRole}</span>) cannot add or edit content.</p>
+        <button onClick={() => router.push("/dashboard")} className="mt-6 px-6 py-3 bg-slate-900 text-white rounded-xl font-bold">Go Back</button>
+      </div>
+    );
+  }
+
+  // 2. Wait for Auth OR Data Fetching
+  if (isFetching || isAuthorized === null) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-20">
         <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p className="text-slate-500 font-bold">Loading document data...</p>
+        <p className="text-slate-500 font-bold">Loading secure environment...</p>
       </div>
     );
   }

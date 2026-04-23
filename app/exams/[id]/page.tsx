@@ -7,8 +7,17 @@ import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { 
   ArrowLeft, FileText, AlertCircle, ShieldAlert, 
-  Lock, Phone, User, CheckCircle2, ChevronLeft
+  Lock, Phone, User, CheckCircle2, ChevronLeft,
+  ChevronRight, ZoomIn, ZoomOut
 } from "lucide-react";
+
+// --- React PDF Imports ---
+import { Document, Page, pdfjs } from 'react-pdf';
+import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
+import 'react-pdf/dist/esm/Page/TextLayer.css';
+
+// Set up the PDF.js worker (CDN is the safest method for Next.js Turbopack)
+pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 // --- Interface ---
 interface ExamDetails {
@@ -40,6 +49,11 @@ export default function SecureExamViewerPage() {
   const [name, setName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // --- PDF Viewer State ---
+  const [numPages, setNumPages] = useState<number | null>(null);
+  const [pageNumber, setPageNumber] = useState<number>(1);
+  const [scale, setScale] = useState<number>(1.2); // Default zoom
+
   // ==========================================================================
   // 1. AUTH & PREMIUM GATEKEEPER
   // ==========================================================================
@@ -51,16 +65,15 @@ export default function SecureExamViewerPage() {
       }
 
       try {
-        // Check if user is premium
         const userDocRef = doc(db, "users", user.uid);
         const userDocSnap = await getDoc(userDocRef);
         
         if (userDocSnap.exists() && (userDocSnap.data().isPremium || userDocSnap.data().pro)) {
           setIsPremium(true);
-          fetchExamDetails(); // ONLY fetch the exam if they are premium!
+          fetchExamDetails(); 
         } else {
           setIsPremium(false);
-          setIsLoading(false); // Stop loading, show the paywall
+          setIsLoading(false); 
         }
       } catch (err) {
         console.error("Auth check failed:", err);
@@ -73,7 +86,7 @@ export default function SecureExamViewerPage() {
   }, [router]);
 
   // ==========================================================================
-  // 2. DATA FETCHING (Only runs if Premium)
+  // 2. DATA FETCHING
   // ==========================================================================
   const fetchExamDetails = async () => {
     try {
@@ -114,7 +127,7 @@ export default function SecureExamViewerPage() {
   // 3. AGGRESSIVE ANTI-PIRACY ENGINE
   // ==========================================================================
   useEffect(() => {
-    if (!isPremium) return; // Don't run security engine if they are just looking at the paywall
+    if (!isPremium) return; 
 
     const handleContextMenu = (e: MouseEvent) => e.preventDefault();
 
@@ -154,12 +167,10 @@ export default function SecureExamViewerPage() {
     };
   }, [isPremium]);
 
-
   // ==========================================================================
-  // PAYMENT LOGIC (From Dart App)
+  // PAYMENT LOGIC
   // ==========================================================================
   const dialUSSD = (ussdCode: string) => {
-    // Encodes the # symbol for mobile browsers
     const encodedUssd = ussdCode.replace(/#/g, "%23");
     window.open(`tel:${encodedUssd}`, "_self");
   };
@@ -170,26 +181,19 @@ export default function SecureExamViewerPage() {
 
     const user = auth.currentUser;
     const userEmail = user?.email || "Email lama hayo";
-
     const message = `*XAQIIJINTA LACAG BIXINTA*\n\n*Emailka ardayga:* ${userEmail}\n*Magaca:* ${name}\n*Lacagta:* 43,000 SLShs ah\n*Lambarka laga soo diray:* ${phone}`;
     
-    // Official WhatsApp API link
-    const whatsappUrl = `https://wa.me/252633227084?text=${encodeURIComponent(message)}`;
-    
-    window.open(whatsappUrl, "_blank");
-    
+    window.open(`https://wa.me/252633227084?text=${encodeURIComponent(message)}`, "_blank");
     setTimeout(() => {
       setIsSubmitting(false);
-      router.push("/dashboard"); // Kick them back to dashboard while waiting for admin approval
+      router.push("/dashboard"); 
     }, 1500);
   };
-
 
   // ==========================================================================
   // RENDER VIEWS
   // ==========================================================================
 
-  // 1. Loading State
   if (isLoading) {
     return (
       <div className="h-screen w-full bg-slate-950 flex flex-col items-center justify-center space-y-4">
@@ -199,105 +203,65 @@ export default function SecureExamViewerPage() {
     );
   }
 
-  // 2. Paywall State (If NOT Premium)
+  // --- PAYWALL STATE ---
   if (isPremium === false) {
     return (
       <div className="h-screen w-full bg-slate-950 flex items-center justify-center p-4 relative overflow-hidden">
-        
-        {/* Background Blur Elements */}
         <div className="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5"></div>
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-indigo-600/20 blur-[100px] rounded-full pointer-events-none"></div>
 
-        {/* The Glass Paywall Modal */}
         <div className="bg-white w-full max-w-md rounded-[32px] shadow-2xl relative z-10 overflow-hidden animate-in zoom-in-95 duration-300">
-          
           {!showConfirmForm ? (
-            /* --- STEP 1: PAYMENT OPTIONS --- */
             <div className="p-8">
               <button onClick={() => router.back()} className="absolute top-6 right-6 p-2 bg-slate-100 rounded-full hover:bg-slate-200 transition">
                 <ArrowLeft className="w-5 h-5 text-slate-500" />
               </button>
-
               <div className="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner border border-amber-100">
                 <Lock className="w-10 h-10 text-amber-500" />
               </div>
-              
               <h2 className="text-3xl font-black text-center text-slate-800 mb-2">Go Premium</h2>
               <p className="text-center text-slate-500 font-medium mb-8 leading-relaxed px-4">
                 Si aad u hesho casharadan iyo agabkan kale oo dhamaystiran, fadlan bixi lacag dhan <strong className="text-slate-800">$4 (43,000 SLShs)</strong>.
               </p>
-
               <div className="space-y-3 mb-6">
-                <button 
-                  onClick={() => dialUSSD("*220*0633227084*43000#")}
-                  className="w-full flex items-center justify-center py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl font-bold text-lg transition-colors shadow-lg shadow-emerald-500/20"
-                >
+                <button onClick={() => dialUSSD("*220*0633227084*43000#")} className="w-full flex items-center justify-center py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl font-bold text-lg transition-colors shadow-lg shadow-emerald-500/20">
                   <Phone className="w-5 h-5 mr-2" /> Ku Bixi ZAAD
                 </button>
-                <button 
-                  onClick={() => dialUSSD("*220*0653227084*43000#")}
-                  className="w-full flex items-center justify-center py-4 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-bold text-lg transition-colors shadow-lg shadow-amber-500/20"
-                >
+                <button onClick={() => dialUSSD("*220*0653227084*43000#")} className="w-full flex items-center justify-center py-4 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-bold text-lg transition-colors shadow-lg shadow-amber-500/20">
                   <Phone className="w-5 h-5 mr-2" /> Ku Bixi E-DAHAB
                 </button>
               </div>
-
-              <button 
-                onClick={() => setShowConfirmForm(true)}
-                className="w-full py-4 text-indigo-600 font-bold hover:bg-indigo-50 rounded-2xl transition-colors"
-              >
+              <button onClick={() => setShowConfirmForm(true)} className="w-full py-4 text-indigo-600 font-bold hover:bg-indigo-50 rounded-2xl transition-colors">
                 Waan Bixiyay Lacagta
               </button>
             </div>
           ) : (
-            /* --- STEP 2: CONFIRMATION FORM --- */
             <div className="p-8">
               <div className="flex items-center justify-between mb-8">
                 <button onClick={() => setShowConfirmForm(false)} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200 transition">
                   <ChevronLeft className="w-5 h-5 text-slate-600" />
                 </button>
                 <h2 className="text-xl font-black text-slate-800">Xaqiiji Lacagta</h2>
-                <div className="w-9"></div> {/* Spacer for centering */}
+                <div className="w-9"></div>
               </div>
-
-              <p className="text-slate-500 font-medium mb-6">
-                Fadlan geli xogta saxda ah si aan kuugu furno akoonkaaga.
-              </p>
-
+              <p className="text-slate-500 font-medium mb-6">Fadlan geli xogta saxda ah si aan kuugu furno akoonkaaga.</p>
               <form onSubmit={handleWhatsAppSubmit} className="space-y-5">
                 <div>
                   <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Lambarka aad ka dirtay</label>
                   <div className="relative">
                     <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                    <input 
-                      required type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
-                      placeholder="Tusaale: 063XXXXXXX"
-                      className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-slate-800"
-                    />
+                    <input required type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Tusaale: 063XXXXXXX" className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-slate-800" />
                   </div>
                 </div>
-
                 <div>
                   <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Magacaaga oo saddexan</label>
                   <div className="relative">
                     <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                    <input 
-                      required type="text" value={name} onChange={(e) => setName(e.target.value)}
-                      placeholder="Geli magacaaga"
-                      className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-slate-800"
-                    />
+                    <input required type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Geli magacaaga" className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-slate-800" />
                   </div>
                 </div>
-
-                <button 
-                  type="submit" disabled={isSubmitting}
-                  className="w-full mt-4 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold text-lg transition-all shadow-lg shadow-indigo-600/30 flex items-center justify-center disabled:opacity-70"
-                >
-                  {isSubmitting ? (
-                    <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  ) : (
-                    <>Xaqiiji & Dir WhatsApp</>
-                  )}
+                <button type="submit" disabled={isSubmitting} className="w-full mt-4 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold text-lg transition-all shadow-lg shadow-indigo-600/30 flex items-center justify-center disabled:opacity-70">
+                  {isSubmitting ? <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <>Xaqiiji & Dir WhatsApp</>}
                 </button>
               </form>
             </div>
@@ -307,7 +271,7 @@ export default function SecureExamViewerPage() {
     );
   }
 
-  // 3. Blackout State (Security Triggered)
+  // --- BLACKOUT STATE ---
   if (isSecurityTriggered) {
     return (
       <div className="fixed inset-0 z-[9999] h-screen w-screen bg-black flex flex-col items-center justify-center select-none">
@@ -320,7 +284,6 @@ export default function SecureExamViewerPage() {
     );
   }
 
-  // 4. Secure Document Render (If Premium & Fetched)
   if (error || !exam) {
     return (
       <div className="h-screen w-full bg-slate-950 flex flex-col items-center justify-center p-4">
@@ -332,10 +295,12 @@ export default function SecureExamViewerPage() {
     );
   }
 
+  // ==========================================================================
+  // SECURE REACT-PDF VIEWER
+  // ==========================================================================
   return (
     <div className="h-screen w-full flex flex-col bg-slate-950 overflow-hidden select-none">
       
-      {/* Anti-Print CSS Injection */}
       <style dangerouslySetInnerHTML={{__html: `
         @media print { body { display: none !important; } }
         * {
@@ -344,10 +309,14 @@ export default function SecureExamViewerPage() {
           -ms-user-select: none !important;
           user-select: none !important;
         }
+        /* Hide scrollbars for a cleaner look */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #020617; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
       `}} />
 
       {/* Top Navbar */}
-      <header className="bg-slate-900 border-b border-slate-800 h-16 shrink-0 flex items-center justify-between px-4 sm:px-6 shadow-md z-10">
+      <header className="bg-slate-900 border-b border-slate-800 h-16 shrink-0 flex items-center justify-between px-4 sm:px-6 shadow-md z-20">
         <div className="flex items-center space-x-4 min-w-0">
           <button onClick={() => router.back()} className="p-2 rounded-full hover:bg-slate-800 transition-colors text-slate-400 hover:text-white shrink-0">
             <ArrowLeft className="w-5 h-5" />
@@ -366,28 +335,42 @@ export default function SecureExamViewerPage() {
         {/* Security Badge */}
         <div className="flex items-center px-3 py-1.5 bg-red-500/10 border border-red-500/20 rounded-lg shrink-0">
           <ShieldAlert className="w-4 h-4 text-red-500 mr-2" />
-          <span className="text-xs font-bold text-red-500 hidden sm:inline">Protected View</span>
+          <span className="text-xs font-bold text-red-500 hidden sm:inline">Protected Canvas</span>
         </div>
       </header>
 
-      {/* Main Content Area */}
-      <main className="flex-1 relative bg-slate-950 flex items-center justify-center">
+      {/* React-PDF Canvas Area */}
+      <main className="flex-1 relative bg-slate-950 overflow-y-auto flex justify-center pb-24">
         {exam.pdfUrl ? (
-          <div className="relative w-full h-full">
-            <object
-              data={`${exam.pdfUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`} 
-              type="application/pdf"
-              className="absolute inset-0 w-full h-full"
+          <div className="mt-8 relative max-w-full">
+            <Document
+              file={exam.pdfUrl}
+              onLoadSuccess={({ numPages }) => setNumPages(numPages)}
+              loading={
+                <div className="flex flex-col items-center mt-32">
+                  <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+                  <p className="text-indigo-400 font-bold">Rendering Secure Document...</p>
+                </div>
+              }
+              error={
+                <div className="flex flex-col items-center mt-32 text-center px-4">
+                  <AlertCircle className="w-12 h-12 text-red-500 mb-4" />
+                  <p className="text-white font-bold mb-2">Could not load the secure PDF.</p>
+                  <p className="text-slate-400 text-sm max-w-xs">The file might be missing or blocked by cross-origin policies.</p>
+                </div>
+              }
             >
-              <div className="flex flex-col items-center justify-center h-full p-6 text-center bg-slate-900">
-                <FileText className="w-20 h-20 text-slate-600 mb-6" />
-                <h2 className="text-xl font-bold text-white mb-2">Browser Cannot Securely Display PDF</h2>
-                <p className="text-slate-400 mb-6 max-w-md">Your current browser configuration does not support our secure inline PDF viewer.</p>
-                <button onClick={() => router.back()} className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold">Return</button>
-              </div>
-            </object>
+              <Page
+                pageNumber={pageNumber}
+                scale={scale}
+                // SECURITY: Setting these to false completely disables text highlighting and copying!
+                renderTextLayer={false} 
+                renderAnnotationLayer={false}
+                className="shadow-2xl shadow-black rounded-lg overflow-hidden border border-slate-800"
+              />
+            </Document>
 
-            {/* Invisible Glass Overlay */}
+            {/* Invisible Glass Overlay blocks right clicking the canvas directly */}
             <div className="absolute inset-0 z-10 pointer-events-none bg-transparent"></div>
           </div>
         ) : (
@@ -397,6 +380,53 @@ export default function SecureExamViewerPage() {
           </div>
         )}
       </main>
+
+      {/* Floating Bottom Navigation Bar */}
+      {numPages && (
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-slate-900/90 backdrop-blur-md border border-slate-700 px-6 py-3 rounded-full flex items-center space-x-6 shadow-2xl z-30">
+          
+          {/* Pagination Controls */}
+          <div className="flex items-center space-x-4 border-r border-slate-700 pr-6">
+            <button 
+              onClick={() => setPageNumber(prev => Math.max(prev - 1, 1))}
+              disabled={pageNumber <= 1}
+              className="p-2 rounded-full text-white hover:bg-slate-700 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <span className="text-slate-300 font-bold text-sm font-mono tracking-widest">
+              {pageNumber} / {numPages}
+            </span>
+            <button 
+              onClick={() => setPageNumber(prev => Math.min(prev + 1, numPages))}
+              disabled={pageNumber >= numPages}
+              className="p-2 rounded-full text-white hover:bg-slate-700 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Zoom Controls */}
+          <div className="flex items-center space-x-2">
+            <button 
+              onClick={() => setScale(prev => Math.max(prev - 0.2, 0.5))}
+              className="p-2 rounded-full text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
+            >
+              <ZoomOut className="w-5 h-5" />
+            </button>
+            <span className="text-slate-400 text-xs font-bold w-12 text-center">
+              {Math.round(scale * 100)}%
+            </span>
+            <button 
+              onClick={() => setScale(prev => Math.min(prev + 0.2, 3.0))}
+              className="p-2 rounded-full text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
+            >
+              <ZoomIn className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
