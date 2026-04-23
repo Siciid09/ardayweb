@@ -8,7 +8,8 @@ import { onAuthStateChanged } from "firebase/auth";
 import { 
   PlayCircle, FileText, ArrowLeft, BookOpen, 
   Lock, Search, ShieldCheck, AlertCircle, Video,
-  Filter, GraduationCap, MapPin
+  Filter, GraduationCap, MapPin,
+  ChevronRight
 } from "lucide-react";
 
 // --- Interfaces ---
