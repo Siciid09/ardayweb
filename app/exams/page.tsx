@@ -2,18 +2,21 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation"; // <-- Added Next.js router
-import { auth, db } from "./../../lib/firebase"; // <-- Added 'auth' to your imports
-import { onAuthStateChanged } from "firebase/auth"; // <-- Added Firebase Auth listener
-import { collection, getDocs, query, orderBy } from "firebase/firestore";
+import { useRouter } from "next/navigation";
+import { auth, db } from "@/lib/firebase"; 
+import { onAuthStateChanged } from "firebase/auth";
+import { collection, getDocs, query, orderBy, doc, getDoc } from "firebase/firestore";
 import { 
   FileText, 
   Search, 
   Filter, 
-  BookOpen, 
   ChevronRight, 
   AlertCircle,
-  CheckCircle2
+  CheckCircle2,
+  HelpCircle,
+  MapPin,
+  GraduationCap,
+  BookOpen
 } from "lucide-react";
 
 // --- Interfaces ---
@@ -25,42 +28,49 @@ interface Exam {
   pdfUrl: string;
   isAnswer: boolean;
   coverImageUrl?: string;
-}
-
-interface Subject {
-  id: string;
-  name: string;
+  grade: string;
+  region: string;
 }
 
 export default function ExamsHubPage() {
-  const router = useRouter(); // <-- Initialize router for redirects
+  const router = useRouter();
 
   // --- State ---
   const [exams, setExams] = useState<Exam[]>([]);
   const [subjects, setSubjects] = useState<Record<string, string>>({});
   
+  // Filter States
   const [activeTab, setActiveTab] = useState<"questions" | "answers">("questions");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSubject, setSelectedSubject] = useState<string>("all");
+  const [selectedGrade, setSelectedGrade] = useState<string>("all");
+  const [selectedRegion, setSelectedRegion] = useState<string>("all");
   
+  // UI States
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
   // --- Authentication & Fetch Data ---
   useEffect(() => {
-    // 1. Listen for the user's authentication state
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      // If no user is found, instantly kick them to the login page
       if (!user) {
-        router.push("/auth"); // Change this if your login page is named something else!
+        router.push("/auth");
         return;
       }
 
-      // If they are logged in, proceed to fetch the data
       try {
         setIsLoading(true);
 
-        // Fetch Subjects to map subjectId -> Subject Name
+        // 1. Fetch User Profile to get their default Grade & Region
+        const userDoc = await getDoc(doc(db, "users", user.uid));
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          // Auto-set filters based on user's profile if they exist
+          if (userData.grade) setSelectedGrade(userData.grade);
+          if (userData.region) setSelectedRegion(userData.region);
+        }
+
+        // 2. Fetch Subjects Mapping
         const subjectsSnap = await getDocs(collection(db, "subjects"));
         const subjectMap: Record<string, string> = {};
         subjectsSnap.docs.forEach(doc => {
@@ -68,19 +78,24 @@ export default function ExamsHubPage() {
         });
         setSubjects(subjectMap);
 
-        // Fetch Exams (Ordered by year descending)
+        // 3. Fetch Exams
         const examsQuery = query(collection(db, "exams"), orderBy("year", "desc"));
         const examsSnap = await getDocs(examsQuery);
         
-        const fetchedExams: Exam[] = examsSnap.docs.map(doc => ({
-          id: doc.id,
-          title: doc.data().title || "Untitled Exam",
-          year: doc.data().year || new Date().getFullYear(),
-          subjectId: doc.data().subjectId || "",
-          pdfUrl: doc.data().pdfUrl || "",
-          isAnswer: doc.data().isAnswer || false,
-          coverImageUrl: doc.data().coverImageUrl || "",
-        }));
+        const fetchedExams: Exam[] = examsSnap.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            title: data.title || "Untitled Exam",
+            year: data.year || new Date().getFullYear(),
+            subjectId: data.subjectId || "",
+            pdfUrl: data.pdfUrl || "",
+            isAnswer: data.isAnswer || false,
+            coverImageUrl: data.coverImageUrl || "",
+            grade: data.grade || "Unspecified",
+            region: data.region || "Unspecified",
+          };
+        });
 
         setExams(fetchedExams);
       } catch (err) {
@@ -91,19 +106,20 @@ export default function ExamsHubPage() {
       }
     });
 
-    // Cleanup the listener when the component unmounts
     return () => unsubscribe();
   }, [router]);
 
+  // --- Extract Unique Filter Options dynamically from the fetched exams ---
+  const uniqueGrades = Array.from(new Set(exams.map(e => e.grade).filter(g => g !== "Unspecified")));
+  const uniqueRegions = Array.from(new Set(exams.map(e => e.region).filter(r => r !== "Unspecified")));
+
   // --- Filtering Logic ---
   const filteredExams = exams.filter(exam => {
-    // 1. Filter by Tab (Questions vs Answers)
     const matchesTab = activeTab === "answers" ? exam.isAnswer : !exam.isAnswer;
-    
-    // 2. Filter by Subject
     const matchesSubject = selectedSubject === "all" || exam.subjectId === selectedSubject;
+    const matchesGrade = selectedGrade === "all" || exam.grade === selectedGrade;
+    const matchesRegion = selectedRegion === "all" || exam.region === selectedRegion;
     
-    // 3. Filter by Search Query
     const searchLower = searchQuery.toLowerCase();
     const subjectName = (subjects[exam.subjectId] || "").toLowerCase();
     const matchesSearch = 
@@ -111,112 +127,175 @@ export default function ExamsHubPage() {
       exam.year.toString().includes(searchLower) ||
       subjectName.includes(searchLower);
 
-    return matchesTab && matchesSubject && matchesSearch;
+    return matchesTab && matchesSubject && matchesGrade && matchesRegion && matchesSearch;
   });
 
-  // --- UI Components ---
+  // --- Loading State ---
   if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center space-y-4">
-        <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-slate-500 font-medium animate-pulse">Decrypting secure vault...</p>
+        <div className="w-16 h-16 bg-white border border-slate-200 rounded-2xl flex items-center justify-center shadow-sm animate-pulse">
+          <FileText className="w-8 h-8 text-blue-600" />
+        </div>
+        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-slate-500 font-bold tracking-widest uppercase text-sm">Loading Vault...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-20">
+    <div className="min-h-screen bg-slate-50 pb-28 font-sans selection:bg-blue-200">
       
-      {/* Header */}
-      <header className="bg-blue-600 pt-12 pb-24 px-4 sm:px-6 lg:px-8 rounded-b-[40px] shadow-lg">
-        <div className="max-w-5xl mx-auto text-center">
-          <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mx-auto mb-4 backdrop-blur-sm shadow-inner">
-            <FileText className="w-8 h-8 text-white" />
+      {/* =========================================
+          PREMIUM HEADER
+      ========================================= */}
+      <header className="bg-slate-900 pt-16 pb-32 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
+        {/* Decorative Background Elements */}
+        <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
+          <div className="absolute -top-24 -right-24 w-96 h-96 bg-blue-600/20 blur-[100px] rounded-full"></div>
+          <div className="absolute top-20 -left-24 w-72 h-72 bg-indigo-600/20 blur-[80px] rounded-full"></div>
+        </div>
+
+        <div className="max-w-6xl mx-auto relative z-10 flex flex-col items-center text-center">
+          <div className="inline-flex items-center px-4 py-2 bg-white/10 backdrop-blur-md rounded-full text-blue-200 font-bold text-xs uppercase tracking-widest mb-6 border border-white/10">
+            <BookOpen className="w-4 h-4 mr-2" /> Official Database
           </div>
-          <h1 className="text-3xl md:text-4xl font-extrabold text-white mb-4">
-            Past Papers & Answers
+          <h1 className="text-4xl md:text-6xl font-black text-white mb-4 tracking-tight">
+            Past Papers <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-400">& Answers</span>
           </h1>
-          <p className="text-blue-100 font-medium max-w-lg mx-auto text-lg">
-            Review past examination papers to prepare for your upcoming tests.
+          <p className="text-slate-400 font-medium max-w-2xl mx-auto text-lg md:text-xl">
+            Review previous examination papers customized to your specific grade and region to secure your success.
           </p>
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 -mt-12 space-y-8 relative z-10">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 -mt-20 relative z-20 space-y-6">
         
-        {/* Search, Filter & Toggle Bar */}
-        <div className="bg-white p-4 rounded-2xl shadow-md border border-slate-100 flex flex-col md:flex-row gap-4 items-center justify-between">
+        {/* =========================================
+            MODERN CONTROL CENTER
+        ========================================= */}
+        <div className="bg-white p-4 md:p-6 rounded-[2rem] shadow-xl shadow-slate-200/50 border border-slate-100 flex flex-col gap-5">
           
-          {/* Custom Toggle Switch */}
-          <div className="flex bg-slate-100 p-1 rounded-xl w-full md:w-auto shrink-0">
-            <button
-              onClick={() => setActiveTab("questions")}
-              className={`flex-1 md:w-32 py-2 px-4 rounded-lg font-bold text-sm transition-all flex items-center justify-center ${
-                activeTab === "questions" 
-                  ? "bg-white text-blue-600 shadow-sm" 
-                  : "text-slate-500 hover:text-slate-700"
-              }`}
-            >
-              <HelpCircle className="w-4 h-4 mr-2" /> Questions
-            </button>
-            <button
-              onClick={() => setActiveTab("answers")}
-              className={`flex-1 md:w-32 py-2 px-4 rounded-lg font-bold text-sm transition-all flex items-center justify-center ${
-                activeTab === "answers" 
-                  ? "bg-blue-600 text-white shadow-sm" 
-                  : "text-slate-500 hover:text-slate-700"
-              }`}
-            >
-              <CheckCircle2 className="w-4 h-4 mr-2" /> Answers
-            </button>
+          {/* Top Row: Search & Toggle */}
+          <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
+            
+            {/* Search Input (Black Text Fix) */}
+            <div className="relative w-full lg:flex-1 group">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-6 h-6 text-slate-400 group-focus-within:text-blue-600 transition-colors" />
+              <input 
+                type="text"
+                placeholder="Search by year or title..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-transparent rounded-2xl focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all text-black font-bold placeholder:text-slate-400 placeholder:font-medium text-lg"
+              />
+            </div>
+
+            {/* Questions vs Answers Toggle */}
+            <div className="flex bg-slate-100 p-1.5 rounded-2xl w-full lg:w-auto shrink-0 border border-slate-200">
+              <button
+                onClick={() => setActiveTab("questions")}
+                className={`flex-1 lg:w-36 py-3 px-4 rounded-xl font-bold text-sm transition-all flex items-center justify-center ${
+                  activeTab === "questions" 
+                    ? "bg-white text-slate-900 shadow-md shadow-slate-200" 
+                    : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"
+                }`}
+              >
+                <HelpCircle className="w-4 h-4 mr-2" /> Questions
+              </button>
+              <button
+                onClick={() => setActiveTab("answers")}
+                className={`flex-1 lg:w-36 py-3 px-4 rounded-xl font-bold text-sm transition-all flex items-center justify-center ${
+                  activeTab === "answers" 
+                    ? "bg-blue-600 text-white shadow-md shadow-blue-600/30" 
+                    : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"
+                }`}
+              >
+                <CheckCircle2 className="w-4 h-4 mr-2" /> Answers
+              </button>
+            </div>
+
           </div>
 
-          {/* Search Input */}
-          <div className="relative w-full md:flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-            <input 
-              type="text"
-              placeholder="Search by year or title..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
-            />
-          </div>
+          {/* Bottom Row: 3 Dropdown Filters */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-t border-slate-100 pt-5">
+            
+            {/* Subject Filter */}
+            <div className="relative">
+              <Filter className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+              <select
+                value={selectedSubject}
+                onChange={(e) => setSelectedSubject(e.target.value)}
+                className="w-full pl-12 pr-10 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none appearance-none font-bold text-black cursor-pointer"
+              >
+                <option value="all">All Subjects</option>
+                {Object.entries(subjects).map(([id, name]) => (
+                  <option key={id} value={id}>{name}</option>
+                ))}
+              </select>
+            </div>
 
-          {/* Subject Filter */}
-          <div className="relative w-full md:w-48 shrink-0">
-            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-            <select
-              value={selectedSubject}
-              onChange={(e) => setSelectedSubject(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none appearance-none font-medium text-slate-700 cursor-pointer"
-            >
-              <option value="all">All Subjects</option>
-              {Object.entries(subjects).map(([id, name]) => (
-                <option key={id} value={id}>{name}</option>
-              ))}
-            </select>
+            {/* Grade Filter */}
+            <div className="relative">
+              <GraduationCap className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+              <select
+                value={selectedGrade}
+                onChange={(e) => setSelectedGrade(e.target.value)}
+                className="w-full pl-12 pr-10 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none appearance-none font-bold text-black cursor-pointer"
+              >
+                <option value="all">All Grades</option>
+                {uniqueGrades.map(g => <option key={g as string} value={g as string}>{g as string}</option>)}
+                {/* Fallbacks just in case the array is empty but we want options */}
+                {!uniqueGrades.includes("Form 4") && <option value="Form 4">Form 4</option>}
+                {!uniqueGrades.includes("Grade 8") && <option value="Grade 8">Grade 8</option>}
+              </select>
+            </div>
+
+            {/* Region Filter */}
+            <div className="relative">
+              <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+              <select
+                value={selectedRegion}
+                onChange={(e) => setSelectedRegion(e.target.value)}
+                className="w-full pl-12 pr-10 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none appearance-none font-bold text-black cursor-pointer"
+              >
+                <option value="all">All Regions</option>
+                {uniqueRegions.map(r => <option key={r as string} value={r as string}>{r as string}</option>)}
+                {!uniqueRegions.includes("Somaliland") && <option value="Somaliland">Somaliland</option>}
+                {!uniqueRegions.includes("Somalia") && <option value="Somalia">Somalia</option>}
+              </select>
+            </div>
+
           </div>
         </div>
 
-        {/* Error State */}
         {error && (
-          <div className="p-4 bg-red-50 text-red-700 border border-red-200 rounded-xl flex items-center">
-            <AlertCircle className="w-5 h-5 mr-3 shrink-0" />
+          <div className="p-4 bg-red-50 text-red-700 border border-red-200 rounded-2xl flex items-center font-bold">
+            <AlertCircle className="w-6 h-6 mr-3 shrink-0" />
             <p>{error}</p>
           </div>
         )}
 
-        {/* Exams Grid */}
+        {/* =========================================
+            EXAMS GRID
+        ========================================= */}
         {filteredExams.length === 0 ? (
-          <div className="bg-white rounded-3xl p-12 text-center border border-slate-100 shadow-sm">
-            <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
-              <FileText className="w-10 h-10 text-slate-300" />
+          <div className="bg-white rounded-[2rem] p-16 text-center border border-slate-200 shadow-sm animate-in fade-in">
+            <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6 border border-slate-100">
+              <FileText className="w-12 h-12 text-slate-300" />
             </div>
-            <h3 className="text-xl font-bold text-slate-800 mb-2">No Papers Found</h3>
-            <p className="text-slate-500">
-              Try adjusting your search or filters to find what you're looking for.
+            <h3 className="text-2xl font-black text-slate-900 mb-2">No Papers Found</h3>
+            <p className="text-slate-500 font-medium text-lg max-w-md mx-auto">
+              We couldn't find any {activeTab} matching your current Grade, Region, or Subject filters.
             </p>
+            <button 
+              onClick={() => {
+                setSearchQuery(""); setSelectedSubject("all"); setSelectedGrade("all"); setSelectedRegion("all");
+              }}
+              className="mt-6 px-6 py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-black transition-colors"
+            >
+              Clear All Filters
+            </button>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -224,22 +303,46 @@ export default function ExamsHubPage() {
               <Link 
                 href={`/exams/${exam.id}`} 
                 key={exam.id}
-                className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group flex items-start space-x-4"
+                className="bg-white rounded-[2rem] p-6 shadow-sm hover:shadow-xl border border-slate-200 hover:border-blue-300 transition-all duration-300 group flex flex-col justify-between h-full"
               >
-                <div className="w-16 h-20 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-100 flex flex-col items-center justify-center shrink-0">
-                  <span className="text-xs font-bold text-blue-400 mb-1">YEAR</span>
-                  <span className="text-lg font-black text-blue-700 leading-none">{exam.year}</span>
-                </div>
-                
-                <div className="flex-1 min-w-0 py-1">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 truncate">
-                    {subjects[exam.subjectId] || "Unknown Subject"}
+                <div>
+                  <div className="flex justify-between items-start mb-5">
+                    <div className="w-20 h-24 bg-gradient-to-br from-slate-50 to-blue-50 rounded-2xl border border-slate-200 group-hover:border-blue-300 flex flex-col items-center justify-center shrink-0 transition-colors">
+                      <span className="text-xs font-black text-slate-400 mb-1">YEAR</span>
+                      <span className="text-2xl font-black text-slate-800 leading-none">{exam.year}</span>
+                    </div>
+                    
+                    {/* Visual Tab Indicator */}
+                    <div className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center ${exam.isAnswer ? 'bg-emerald-50 text-emerald-700' : 'bg-blue-50 text-blue-700'}`}>
+                      {exam.isAnswer ? <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> : <HelpCircle className="w-3.5 h-3.5 mr-1" />}
+                      {exam.isAnswer ? 'Answer Key' : 'Question Paper'}
+                    </div>
+                  </div>
+                  
+                  <p className="text-xs font-black text-blue-600 uppercase tracking-widest mb-2 line-clamp-1">
+                    {subjects[exam.subjectId] || "Subject Unknown"}
                   </p>
-                  <h3 className="font-bold text-slate-800 mb-2 truncate group-hover:text-blue-600 transition-colors">
-                    {exam.isAnswer ? `${exam.title} (Answers)` : exam.title}
+                  <h3 className="text-xl font-black text-slate-900 mb-4 line-clamp-2 group-hover:text-blue-600 transition-colors leading-tight">
+                    {exam.title}
                   </h3>
-                  <div className="flex items-center text-sm font-bold text-blue-600 mt-2">
-                    Open PDF <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
+                </div>
+
+                <div>
+                  {/* Badges for Grade and Region */}
+                  <div className="flex flex-wrap gap-2 mb-6 border-t border-slate-100 pt-4">
+                    <div className="flex items-center bg-slate-100 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-600">
+                      <GraduationCap className="w-3.5 h-3.5 mr-1.5 opacity-70" /> {exam.grade}
+                    </div>
+                    <div className="flex items-center bg-slate-100 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-600">
+                      <MapPin className="w-3.5 h-3.5 mr-1.5 opacity-70" /> {exam.region}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between w-full p-4 bg-slate-50 rounded-xl group-hover:bg-blue-600 transition-colors">
+                    <span className="text-sm font-bold text-slate-700 group-hover:text-white transition-colors">Open Document</span>
+                    <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center group-hover:translate-x-1 transition-transform shadow-sm">
+                      <ChevronRight className="w-4 h-4 text-blue-600" />
+                    </div>
                   </div>
                 </div>
               </Link>
@@ -248,12 +351,5 @@ export default function ExamsHubPage() {
         )}
       </main>
     </div>
-  );
-}
-
-// Quick fallback icon component for the toggle
-function HelpCircle(props: any) {
-  return (
-    <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
   );
 }
