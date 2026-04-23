@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic"; // <-- ADDS THIS
 import { NextResponse } from "next/server";
 import { initAdmin } from "@/lib/firebaseAdmin";
 import { getAuth } from "firebase-admin/auth";

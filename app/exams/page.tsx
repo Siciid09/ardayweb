@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { db } from "./../../lib/firebase"; // Adjust path to your firebase config
+import { useRouter } from "next/navigation"; // <-- Added Next.js router
+import { auth, db } from "./../../lib/firebase"; // <-- Added 'auth' to your imports
+import { onAuthStateChanged } from "firebase/auth"; // <-- Added Firebase Auth listener
 import { collection, getDocs, query, orderBy } from "firebase/firestore";
 import { 
   FileText, 
@@ -31,6 +33,8 @@ interface Subject {
 }
 
 export default function ExamsHubPage() {
+  const router = useRouter(); // <-- Initialize router for redirects
+
   // --- State ---
   const [exams, setExams] = useState<Exam[]>([]);
   const [subjects, setSubjects] = useState<Record<string, string>>({});
@@ -42,13 +46,21 @@ export default function ExamsHubPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // --- Fetch Data ---
+  // --- Authentication & Fetch Data ---
   useEffect(() => {
-    const fetchExamsAndSubjects = async () => {
+    // 1. Listen for the user's authentication state
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      // If no user is found, instantly kick them to the login page
+      if (!user) {
+        router.push("/auth"); // Change this if your login page is named something else!
+        return;
+      }
+
+      // If they are logged in, proceed to fetch the data
       try {
         setIsLoading(true);
 
-        // 1. Fetch Subjects to map subjectId -> Subject Name
+        // Fetch Subjects to map subjectId -> Subject Name
         const subjectsSnap = await getDocs(collection(db, "subjects"));
         const subjectMap: Record<string, string> = {};
         subjectsSnap.docs.forEach(doc => {
@@ -56,7 +68,7 @@ export default function ExamsHubPage() {
         });
         setSubjects(subjectMap);
 
-        // 2. Fetch Exams (Ordered by year descending)
+        // Fetch Exams (Ordered by year descending)
         const examsQuery = query(collection(db, "exams"), orderBy("year", "desc"));
         const examsSnap = await getDocs(examsQuery);
         
@@ -77,10 +89,11 @@ export default function ExamsHubPage() {
       } finally {
         setIsLoading(false);
       }
-    };
+    });
 
-    fetchExamsAndSubjects();
-  }, []);
+    // Cleanup the listener when the component unmounts
+    return () => unsubscribe();
+  }, [router]);
 
   // --- Filtering Logic ---
   const filteredExams = exams.filter(exam => {
@@ -106,7 +119,7 @@ export default function ExamsHubPage() {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center space-y-4">
         <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-slate-500 font-medium animate-pulse">Loading past papers...</p>
+        <p className="text-slate-500 font-medium animate-pulse">Decrypting secure vault...</p>
       </div>
     );
   }

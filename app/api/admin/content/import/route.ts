@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic"; // <-- THIS TELLS VERCEL TO SKIP STATIC BUILD
+
 import { NextResponse } from "next/server";
 import { initAdmin } from "@/lib/firebaseAdmin";
 import { getAuth } from "firebase-admin/auth";

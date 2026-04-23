@@ -1,22 +1,27 @@
-import { initializeApp, getApps, cert } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
-import { getAuth } from "firebase-admin/auth";
-
-// These come from your .env.local file
-const serviceAccount = {
-  projectId: process.env.FIREBASE_PROJECT_ID,
-  clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-  privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-};
+import * as admin from "firebase-admin";
 
 export function initAdmin() {
-  if (getApps().length <= 0) {
-    initializeApp({
-      credential: cert(serviceAccount as any),
-    });
+  // 1. If Firebase Admin is already initialized, don't do it again
+  if (admin.apps.length > 0) {
+    return admin.app();
   }
-}
 
-initAdmin();
-export const adminDb = getFirestore();
-export const adminAuth = getAuth();
+  // 2. BUILD-PROOF SHIELD: If Vercel is building the app, environment variables 
+  // might be missing. We exit gracefully instead of crashing the build.
+  if (!process.env.FIREBASE_PROJECT_ID || !process.env.FIREBASE_PRIVATE_KEY) {
+    console.warn("Firebase Admin variables missing. Skipping initialization during build.");
+    return null;
+  }
+
+  // 3. Initialize normally for actual live user requests
+  admin.initializeApp({
+    credential: admin.credential.cert({
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      // This replace regex fixes Vercel's habit of breaking private key line breaks
+      privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+    }),
+  });
+
+  return admin.app();
+}

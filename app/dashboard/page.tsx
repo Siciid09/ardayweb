@@ -59,6 +59,30 @@ export default function MassiveDashboard() {
   const [error, setError] = useState("");
   const [indexUrl, setIndexUrl] = useState<string | null>(null);
 
+  // --- Paywall State & Handlers ---
+  const [showPaywall, setShowPaywall] = useState(false);
+  const [showConfirmForm, setShowConfirmForm] = useState(false);
+  const [phone, setPhone] = useState("");
+  const [name, setName] = useState("");
+  const [isSubmittingPay, setIsSubmittingPay] = useState(false);
+
+  const handlePremiumRoute = (path: string) => {
+    if (userProfile?.isPremium) {
+      router.push(path);
+    } else {
+      setShowPaywall(true);
+    }
+  };
+
+  const dialUSSD = (ussdCode: string) => { window.open(`tel:${ussdCode.replace(/#/g, "%23")}`, "_self"); };
+  const handleWhatsAppSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmittingPay(true);
+    const msg = `*XAQIIJINTA LACAG BIXINTA*\n\n*Emailka ardayga:* ${userProfile?.uid}\n*Magaca:* ${name}\n*Lacagta:* 43,000 SLShs ah\n*Lambarka laga soo diray:* ${phone}`;
+    window.open(`https://wa.me/252633227084?text=${encodeURIComponent(msg)}`, "_blank");
+    setTimeout(() => { setIsSubmittingPay(false); setShowPaywall(false); }, 1500);
+  };
+
   // --- Data Fetching Engine ---
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -264,8 +288,9 @@ export default function MassiveDashboard() {
           <section>
             <SectionHeader title="Jump Back In" subtitle="Pick up where you left off" />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {recentContent.map((item) => (
-                <Link href={`/${item.type}s/${item.id}`} key={item.id} className="bg-white rounded-[24px] p-4 flex items-center border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-300 transition-all group">
+            {recentContent.map((item) => (
+                <button onClick={() => handlePremiumRoute(`/${item.type}s/${item.id}`)} key={item.id} className="w-full text-left bg-white rounded-[24px] p-4 flex items-center border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-300 transition-all group">
+                  {/* Keep the icon and title code here as it is... */}
                   <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 ${item.type === 'lesson' ? 'bg-indigo-50 text-indigo-600' : 'bg-emerald-50 text-emerald-600'}`}>
                     {item.type === 'lesson' ? <PlayCircle className="w-7 h-7" /> : <FileText className="w-7 h-7" />}
                   </div>
@@ -273,8 +298,8 @@ export default function MassiveDashboard() {
                     <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-0.5">{item.type}</p>
                     <h4 className="font-bold text-slate-800 truncate group-hover:text-blue-600 transition-colors">{item.title}</h4>
                   </div>
-                  <ChevronRight className="w-5 h-5 text-slate-300 group-hover:translate-x-1 transition-transform" />
-                </Link>
+                  {!userProfile?.isPremium ? <span className="text-amber-500 font-bold text-xs uppercase tracking-widest">🔒 Pro</span> : <ChevronRight className="w-5 h-5 text-slate-300 group-hover:translate-x-1 transition-transform" />}
+                </button>
               ))}
             </div>
           </section>
@@ -284,15 +309,16 @@ export default function MassiveDashboard() {
         <section>
           <SectionHeader title="Brain Games & Quizzes" subtitle="Test your knowledge interactively" />
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {quizzes.length > 0 ? quizzes.map((quiz) => (
-              <Link href={`/quizzes/${quiz.id}`} key={quiz.id} className="bg-slate-900 rounded-[24px] p-5 relative overflow-hidden group text-white shadow-xl hover:-translate-y-1 transition-all duration-300">
+         {quizzes.length > 0 ? quizzes.map((quiz) => (
+              <button onClick={() => handlePremiumRoute(`/quizzes/${quiz.id}`)} key={quiz.id} className="w-full text-left bg-slate-900 rounded-[24px] p-5 relative overflow-hidden group text-white shadow-xl hover:-translate-y-1 transition-all duration-300">
                 <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full blur-2xl opacity-40 group-hover:opacity-60 transition-opacity"></div>
                 <Gamepad2 className="w-8 h-8 text-blue-400 mb-4 relative z-10" />
                 <h4 className="font-bold text-lg leading-tight mb-2 relative z-10 line-clamp-2">{quiz.title}</h4>
-                <p className="text-slate-400 text-sm font-medium relative z-10 flex items-center">
-                  <BrainCircuit className="w-4 h-4 mr-1.5" /> {quiz.questionCount} Qs
+                <p className="text-slate-400 text-sm font-medium relative z-10 flex items-center justify-between">
+                  <span className="flex items-center"><BrainCircuit className="w-4 h-4 mr-1.5" /> {quiz.questionCount} Qs</span>
+                  {!userProfile?.isPremium && <span className="text-amber-400 text-base">🔒</span>}
                 </p>
-              </Link>
+              </button>
             )) : (
               <div className="col-span-full bg-white p-8 rounded-[24px] text-center border border-slate-200">
                 <Trophy className="w-12 h-12 text-slate-300 mx-auto mb-3" />
