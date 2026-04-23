@@ -46,7 +46,7 @@ export default function HomePage() {
         {/* =========================================
             SECTION 1: HERO (Existing)
         ========================================= */}
-        <section className="relative pt-16 pb-24 lg:pt-28 lg:pb-32 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto flex flex-col items-center text-center">
+        <section className="relative pt-8 pb-24 lg:pt-10 lg:pb-32 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto flex flex-col items-center text-center">
           <div className="absolute top-10 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-blue-600/10 blur-[100px] -z-10 rounded-full pointer-events-none"></div>
 
           <div className="inline-flex items-center space-x-2 bg-white border border-slate-200 px-4 py-2 rounded-full mb-8 shadow-sm">
@@ -240,7 +240,7 @@ export default function HomePage() {
               <p className="text-slate-500 font-medium text-lg">Every subject you need, meticulously organized.</p>
             </div>
             <div className="flex flex-wrap justify-center gap-4">
-              {['Mathematics', 'Biology', 'Chemistry', 'Physics', 'Geography', 'History', 'English', 'Islamic Studies'].map((sub, i) => (
+              {['Mathematics', 'Biology', 'Chemistry', 'Physics', 'Geography', 'History', 'English', 'Islamic Studies', 'Somali', 'Social Science', 'Arabic'].map((sub, i) => (
                 <div key={i} className="px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-700 font-bold hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all cursor-pointer shadow-sm">
                   {sub}
                 </div>

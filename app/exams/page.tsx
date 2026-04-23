@@ -179,7 +179,7 @@ export default function ExamsHubPage() {
           {/* Top Row: Search & Toggle */}
           <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
             
-            {/* Search Input (Black Text Fix) */}
+            {/* Search Input */}
             <div className="relative w-full lg:flex-1 group">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-6 h-6 text-slate-400 group-focus-within:text-blue-600 transition-colors" />
               <input 
@@ -245,7 +245,6 @@ export default function ExamsHubPage() {
               >
                 <option value="all">All Grades</option>
                 {uniqueGrades.map(g => <option key={g as string} value={g as string}>{g as string}</option>)}
-                {/* Fallbacks just in case the array is empty but we want options */}
                 {!uniqueGrades.includes("Form 4") && <option value="Form 4">Form 4</option>}
                 {!uniqueGrades.includes("Grade 8") && <option value="Grade 8">Grade 8</option>}
               </select>
@@ -303,44 +302,64 @@ export default function ExamsHubPage() {
               <Link 
                 href={`/exams/${exam.id}`} 
                 key={exam.id}
-                className="bg-white rounded-[2rem] p-6 shadow-sm hover:shadow-xl border border-slate-200 hover:border-blue-300 transition-all duration-300 group flex flex-col justify-between h-full"
+                className="bg-white rounded-[2rem] shadow-sm hover:shadow-xl border border-slate-200 hover:border-blue-300 transition-all duration-300 group flex flex-col h-full overflow-hidden"
               >
-                <div>
-                  <div className="flex justify-between items-start mb-5">
-                    <div className="w-20 h-24 bg-gradient-to-br from-slate-50 to-blue-50 rounded-2xl border border-slate-200 group-hover:border-blue-300 flex flex-col items-center justify-center shrink-0 transition-colors">
-                      <span className="text-xs font-black text-slate-400 mb-1">YEAR</span>
-                      <span className="text-2xl font-black text-slate-800 leading-none">{exam.year}</span>
+                {/* --- 50% Cover Image Section --- */}
+                <div className="relative w-full h-48 sm:h-56 bg-gradient-to-br from-slate-100 to-blue-50 overflow-hidden shrink-0 border-b border-slate-100">
+                  {exam.coverImageUrl ? (
+                    <img 
+                      src={exam.coverImageUrl} 
+                      alt={exam.title} 
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
+                    />
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center">
+                      <FileText className="w-16 h-16 text-blue-200 mb-4" />
                     </div>
-                    
-                    {/* Visual Tab Indicator */}
-                    <div className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center ${exam.isAnswer ? 'bg-emerald-50 text-emerald-700' : 'bg-blue-50 text-blue-700'}`}>
+                  )}
+                  
+                  {/* Modern Fade to White Gradient at Bottom */}
+                  <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-white to-transparent pointer-events-none"></div>
+                  
+                  {/* Floating Badges over the image */}
+                  <div className="absolute top-4 left-4">
+                    <div className="bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/40 shadow-sm flex flex-col items-center justify-center">
+                      <span className="text-[10px] font-black text-slate-500 leading-none mb-1">YEAR</span>
+                      <span className="text-xl font-black text-slate-900 leading-none">{exam.year}</span>
+                    </div>
+                  </div>
+
+                  <div className="absolute top-4 right-4">
+                    <div className={`px-3 py-1.5 rounded-xl text-[10px] uppercase tracking-wider font-black flex items-center shadow-sm backdrop-blur-md border border-white/30 ${exam.isAnswer ? 'bg-emerald-500/90 text-white' : 'bg-blue-600/90 text-white'}`}>
                       {exam.isAnswer ? <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> : <HelpCircle className="w-3.5 h-3.5 mr-1" />}
                       {exam.isAnswer ? 'Answer Key' : 'Question Paper'}
                     </div>
                   </div>
-                  
+                </div>
+                
+                {/* --- Content Section --- */}
+                <div className="p-6 flex flex-col flex-1 bg-white relative z-10">
                   <p className="text-xs font-black text-blue-600 uppercase tracking-widest mb-2 line-clamp-1">
                     {subjects[exam.subjectId] || "Subject Unknown"}
                   </p>
                   <h3 className="text-xl font-black text-slate-900 mb-4 line-clamp-2 group-hover:text-blue-600 transition-colors leading-tight">
                     {exam.title}
                   </h3>
-                </div>
 
-                <div>
-                  {/* Badges for Grade and Region */}
-                  <div className="flex flex-wrap gap-2 mb-6 border-t border-slate-100 pt-4">
-                    <div className="flex items-center bg-slate-100 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-600">
-                      <GraduationCap className="w-3.5 h-3.5 mr-1.5 opacity-70" /> {exam.grade}
+                  {/* Badges for Grade and Region pushed to bottom */}
+                  <div className="flex flex-wrap gap-2 mb-6 mt-auto border-t border-slate-100 pt-4">
+                    <div className="flex items-center bg-slate-50 px-3 py-1.5 rounded-lg text-[11px] uppercase tracking-wider font-bold text-slate-500 border border-slate-100">
+                      <GraduationCap className="w-3.5 h-3.5 mr-1.5 text-slate-400" /> {exam.grade}
                     </div>
-                    <div className="flex items-center bg-slate-100 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-600">
-                      <MapPin className="w-3.5 h-3.5 mr-1.5 opacity-70" /> {exam.region}
+                    <div className="flex items-center bg-slate-50 px-3 py-1.5 rounded-lg text-[11px] uppercase tracking-wider font-bold text-slate-500 border border-slate-100">
+                      <MapPin className="w-3.5 h-3.5 mr-1.5 text-slate-400" /> {exam.region}
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between w-full p-4 bg-slate-50 rounded-xl group-hover:bg-blue-600 transition-colors">
-                    <span className="text-sm font-bold text-slate-700 group-hover:text-white transition-colors">Open Document</span>
-                    <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center group-hover:translate-x-1 transition-transform shadow-sm">
+                  {/* Action Button */}
+                  <div className="flex items-center justify-between w-full p-4 bg-slate-50 rounded-xl group-hover:bg-blue-50 transition-colors border border-slate-100 group-hover:border-blue-200">
+                    <span className="text-sm font-bold text-slate-700 group-hover:text-blue-700 transition-colors">Open Document</span>
+                    <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center group-hover:translate-x-1 transition-transform shadow-sm border border-slate-200">
                       <ChevronRight className="w-4 h-4 text-blue-600" />
                     </div>
                   </div>
