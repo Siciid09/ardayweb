@@ -13,8 +13,22 @@ import { useRouter } from "next/router";
 import { useSearchParams } from "next/navigation";
 
 const ALLOWED_ROLES = ["admin", "sadmin", "badmin", "hoadmin"];
-// Wrap in Suspense because we are using useSearchParams()
 export default function AddEditContentWrapper() {
+  const [isMounted, setIsMounted] = useState(false);
+
+  // This ensures the component ONLY renders in the browser, completely skipping the Vercel build crash
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  if (!isMounted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
   return (
     <Suspense fallback={
       <div className="min-h-screen flex items-center justify-center">
