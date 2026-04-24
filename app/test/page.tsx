@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 // ⚠️ Adjust this import path to point to your project's Firebase lib file
-import { db, auth } from '../lib/firebase'; 
+import { auth, db } from "@/lib/firebase"; // Adjust the path to your firebase config
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 
