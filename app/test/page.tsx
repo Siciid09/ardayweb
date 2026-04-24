@@ -1,30 +1,17 @@
 'use client';
 
 import { useState } from 'react';
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
-import { getFirestore, collection, query, where, orderBy, getDocs } from 'firebase/firestore';
-
-// ⚠️ PASTE YOUR FIREBASE WEB CONFIG HERE
-const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
-};
-
-// Initialize Firebase safely for Next.js
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-const auth = getAuth(app);
-const db = getFirestore(app);
+// ⚠️ Adjust this import path to point to your project's Firebase lib file
+import { db, auth } from '../lib/firebase'; 
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 
 export default function FirestoreIndexTester() {
   const [logs, setLogs] = useState<string[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Helper to add logs to the UI
   const addLog = (msg: string) => setLogs((prev) => [...prev, msg]);
 
   const testFirestoreQuery = async () => {
@@ -33,14 +20,14 @@ export default function FirestoreIndexTester() {
     setErrorMessage(null);
 
     try {
-      // 1. Authenticate to bypass 'Missing permissions'
+      // 1. Authenticate to bypass 'Missing permissions' rules
       addLog('Logging in to bypass security rules...');
-      // ⚠️ PUT A VALID USER EMAIL AND PASSWORD HERE
+      // ⚠️ PUT A VALID TEST USER EMAIL AND PASSWORD HERE
       await signInWithEmailAndPassword(auth, "test@email.com", "yourpassword");
       addLog('Logged in successfully!');
 
-      // 2. Run the exact published Flutter query
-      addLog('Running the exact query from Arday Caawiye...');
+      // 2. Run the exact published query from Arday Caawiye
+      addLog('Running the exact query...');
       const examsRef = collection(db, 'exams');
       
       const q = query(
@@ -84,7 +71,10 @@ export default function FirestoreIndexTester() {
         {errorMessage && (
           <div style={{ marginTop: '15px', padding: '15px', background: '#ffebee', color: '#c62828', borderRadius: '5px', wordWrap: 'break-word' }}>
             <strong>Raw Error:</strong><br /><br />
-            {errorMessage}
+            {/* Using dangerouslySetInnerHTML so the Firebase URL becomes a clickable link if it exists */}
+            <div dangerouslySetInnerHTML={{ 
+              __html: errorMessage.replace(/(https:\/\/[^\s]+)/g, '<a href="$1" target="_blank" style="color: blue; text-decoration: underline;">$1</a>') 
+            }} />
           </div>
         )}
       </div>
