@@ -1,82 +1,99 @@
 'use client';
 
 import { useState } from 'react';
-// ⚠️ Adjust this import path to point to your project's Firebase lib file
-import { auth, db } from "@/lib/firebase"; // Adjust the path to your firebase config
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 
-export default function FirestoreIndexTester() {
-  const [logs, setLogs] = useState<string[]>([]);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+export default function FirestoreIndexHelper() {
+  const [rawError, setRawError] = useState('');
+  const [projectId, setProjectId] = useState('');
+  const [generatedLink, setGeneratedLink] = useState('');
 
-  // Helper to add logs to the UI
-  const addLog = (msg: string) => setLogs((prev) => [...prev, msg]);
+  // The exact indexes required by your exams.dart logic
+  const requiredIndexes = [
+    {
+      name: "Exams Base Query",
+      fields: "grade (Ascending), region (Ascending), isAnswer (Ascending), year (Descending)"
+    },
+    {
+      name: "Exams Subject Query",
+      fields: "grade (Ascending), region (Ascending), subjectId (Ascending), isAnswer (Ascending), year (Descending)"
+    }
+  ];
 
-  const testFirestoreQuery = async () => {
-    setIsLoading(true);
-    setLogs([]);
-    setErrorMessage(null);
-
-    try {
-      // 1. Authenticate to bypass 'Missing permissions' rules
-      addLog('Logging in to bypass security rules...');
-      // ⚠️ PUT A VALID TEST USER EMAIL AND PASSWORD HERE
-      await signInWithEmailAndPassword(auth, "test@email.com", "yourpassword");
-      addLog('Logged in successfully!');
-
-      // 2. Run the exact published query from Arday Caawiye
-      addLog('Running the exact query...');
-      const examsRef = collection(db, 'exams');
-      
-      const q = query(
-        examsRef,
-        where('grade', '==', 'Form 4'),
-        where('region', '==', 'Somaliland'),
-        where('isAnswer', '!=', true),
-        orderBy('year', 'desc')
-      );
-
-      await getDocs(q);
-      addLog('✅ Query succeeded! No index is missing.');
-
-    } catch (error: any) {
-      addLog('🔥 FIREBASE ERROR TRIGGERED:');
-      setErrorMessage(error.message);
-      console.error(error);
-    } finally {
-      setIsLoading(false);
+  const handleExtractLink = () => {
+    if (!rawError) return;
+    
+    // Regex to catch the Firebase console link inside the Flutter error dump
+    const urlRegex = /(https:\/\/console\.firebase\.google\.com[^\s]+)/g;
+    const match = rawError.match(urlRegex);
+    
+    if (match && match.length > 0) {
+      setGeneratedLink(match[0]);
+    } else {
+      setGeneratedLink('No valid Firebase index URL found in the text.');
     }
   };
 
   return (
-    <div style={{ maxWidth: '600px', margin: '50px auto', fontFamily: 'sans-serif' }}>
-      <h2>Firestore Index Link Generator</h2>
-      
-      <button 
-        onClick={testFirestoreQuery} 
-        disabled={isLoading}
-        style={{ padding: '10px 20px', cursor: 'pointer', background: '#0070f3', color: 'white', border: 'none', borderRadius: '5px' }}
-      >
-        {isLoading ? 'Running Test...' : 'Run Query & Get Index Link'}
-      </button>
+    <div className="min-h-screen bg-gray-50 p-8 text-gray-800 font-sans">
+      <div className="max-w-3xl mx-auto bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+        <h1 className="text-2xl font-bold mb-2">Firestore Index Link Generator</h1>
+        <p className="text-gray-500 mb-8">
+          Paste the raw terminal error to extract the direct 1-click index generation link.
+        </p>
 
-      <div style={{ marginTop: '20px', padding: '15px', background: '#f5f5f5', borderRadius: '8px' }}>
-        <h3>Process Logs:</h3>
-        {logs.map((log, i) => (
-          <p key={i} style={{ margin: '5px 0', fontSize: '14px' }}>{log}</p>
-        ))}
-        
-        {errorMessage && (
-          <div style={{ marginTop: '15px', padding: '15px', background: '#ffebee', color: '#c62828', borderRadius: '5px', wordWrap: 'break-word' }}>
-            <strong>Raw Error:</strong><br /><br />
-            {/* Using dangerouslySetInnerHTML so the Firebase URL becomes a clickable link if it exists */}
-            <div dangerouslySetInnerHTML={{ 
-              __html: errorMessage.replace(/(https:\/\/[^\s]+)/g, '<a href="$1" target="_blank" style="color: blue; text-decoration: underline;">$1</a>') 
-            }} />
+        {/* URL Extractor Section */}
+        <div className="space-y-4 mb-10">
+          <label className="block text-sm font-semibold">
+            Paste Flutter Console Error Here:
+          </label>
+          <textarea
+            className="w-full h-32 p-4 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all font-mono text-sm"
+            placeholder="Paste the error containing 'https://console.firebase.google.com/v1/r/project/...'"
+            value={rawError}
+            onChange={(e) => setRawError(e.target.value)}
+          />
+          <button
+            onClick={handleExtractLink}
+            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors"
+          >
+            Extract Clickable Link
+          </button>
+
+          {generatedLink && (
+            <div className={`p-4 rounded-xl break-all ${generatedLink.startsWith('http') ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+              {generatedLink.startsWith('http') ? (
+                <a 
+                  href={generatedLink} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-blue-600 font-medium hover:underline flex items-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                  Click here to build the index in Firebase
+                </a>
+              ) : (
+                <span className="text-red-600">{generatedLink}</span>
+              )}
+            </div>
+          )}
+        </div>
+
+        <hr className="mb-8 border-gray-100" />
+
+        {/* Required Indexes Reference */}
+        <div>
+          <h2 className="text-lg font-bold mb-4">Required Indexes for exams.dart</h2>
+          <div className="grid gap-4">
+            {requiredIndexes.map((idx, i) => (
+              <div key={i} className="p-4 bg-gray-50 rounded-xl border border-gray-200">
+                <h3 className="font-semibold mb-1">{idx.name}</h3>
+                <code className="text-sm text-pink-600 bg-pink-50 px-2 py-1 rounded">
+                  {idx.fields}
+                </code>
+              </div>
+            ))}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
