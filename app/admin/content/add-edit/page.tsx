@@ -9,7 +9,8 @@ import {
   AlertCircle, Image as ImageIcon, Save, Check, Lock
 } from "lucide-react";
 import { Suspense, useEffect, useState } from "react";
-import { useRouter } from "next/router";
+
+import { useRouter } from "next/navigation";
 import { useSearchParams } from "next/navigation";
 
 const ALLOWED_ROLES = ["admin", "sadmin", "badmin", "hoadmin"];
