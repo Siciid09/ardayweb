@@ -3,17 +3,17 @@
 import { auth, db } from "@/lib/firebase"; 
 import { onAuthStateChanged } from "firebase/auth";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { collection, addDoc, doc, getDoc, updateDoc, getDocs, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, doc, getDoc, updateDoc, getDocs, serverTimestamp, query, where } from "firebase/firestore";
 import { 
-  ArrowLeft, UploadCloud, FileType, CheckCircle2, 
-  AlertCircle, Image as ImageIcon, Save, Check, Lock
+  ArrowLeft, FileType, CheckCircle2, 
+  AlertCircle, Image as ImageIcon, Save, Check, Lock, Plus, X
 } from "lucide-react";
 import { Suspense, useEffect, useState } from "react";
-
-import { useRouter } from "next/navigation";
+import { useRouter } from "next/router";
 import { useSearchParams } from "next/navigation";
 
 const ALLOWED_ROLES = ["admin", "sadmin", "badmin", "hoadmin"];
+
 export default function AddEditContentWrapper() {
   const [isMounted, setIsMounted] = useState(false);
 
@@ -45,7 +45,7 @@ function AddEditContentForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const contentType = searchParams.get("type") || "subject";
-  const editId = searchParams.get("id"); // Get ID if we are editing!
+  const editId = searchParams.get("id"); // Get ID if we are editing
 
   // --- Security State ---
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
@@ -94,6 +94,13 @@ function AddEditContentForm() {
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [existingPdfUrl, setExistingPdfUrl] = useState<string | null>(null);
 
+  // Subject Modal State
+  const [isSubjectModalOpen, setIsSubjectModalOpen] = useState(false);
+  const [newSubjectName, setNewSubjectName] = useState("");
+  const [newSubjectCover, setNewSubjectCover] = useState<File | null>(null);
+  const [newSubjectPdf, setNewSubjectPdf] = useState<File | null>(null);
+  const [isCreatingSubject, setIsCreatingSubject] = useState(false);
+
   // UI State
   const [isFetching, setIsFetching] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -105,16 +112,30 @@ function AddEditContentForm() {
 
   const targetCollection = contentType === "generalBooks" ? "generalBooks" : `${contentType}s`;
 
-  // 1. Fetch subjects list
+  // 1. Fetch subjects dynamically based on selected Grade & Region
   useEffect(() => {
     if (['lesson', 'exam', 'quiz'].includes(contentType)) {
-      const fetchSubjects = async () => {
-        const snap = await getDocs(collection(db, "subjects"));
-        setSubjectsList(snap.docs.map(doc => ({ id: doc.id, name: doc.data().name })));
-      };
-      fetchSubjects();
+      if (selectedGrade && selectedRegion) {
+        const fetchFilteredSubjects = async () => {
+          try {
+            const q = query(
+              collection(db, "subjects"),
+              where("grade", "==", selectedGrade),
+              where("region", "==", selectedRegion)
+            );
+            const snap = await getDocs(q);
+            setSubjectsList(snap.docs.map(doc => ({ id: doc.id, name: doc.data().name })));
+          } catch (err) {
+            console.error("Failed to fetch subjects", err);
+          }
+        };
+        fetchFilteredSubjects();
+      } else {
+        // Clear subjects if grade/region not fully selected
+        setSubjectsList([]);
+      }
     }
-  }, [contentType]);
+  }, [contentType, selectedGrade, selectedRegion]);
 
   // 2. If Editing, fetch existing data
   useEffect(() => {
@@ -133,9 +154,9 @@ function AddEditContentForm() {
             setAuthor(data.author || "");
             setSelectedGrade(data.grade || "");
             setSelectedRegion(data.region || "");
-            setSelectedSubjectId(data.subjectId || "");
+            // Note: Subject ID will map correctly once the useEffect above fires for the fetched grade/region
+            setTimeout(() => setSelectedSubjectId(data.subjectId || ""), 500); 
             
-            // Save existing URLs so we don't overwrite them if no new file is uploaded
             setExistingCoverUrl(data.coverImageUrl || null);
             setExistingPdfUrl(data.pdfUrl || data.bookPdfUrl || null);
             if (data.coverImageUrl) setCoverPreview(data.coverImageUrl);
@@ -151,7 +172,7 @@ function AddEditContentForm() {
     }
   }, [editId, targetCollection]);
 
-  // Handle Cover Image Selection for Live Preview
+  // --- File Handlers ---
   const handleCoverSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -160,13 +181,57 @@ function AddEditContentForm() {
     }
   };
 
-  // --- Upload Helper ---
   const uploadFileToStorage = async (file: File, folder: string) => {
     const storage = getStorage();
     const storageRef = ref(storage, `${folder}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '')}`);
     await uploadBytes(storageRef, file);
     return await getDownloadURL(storageRef);
   };
+
+  // --- Inline Subject Creation Logic ---
+  const handleCreateSubject = async () => {
+    if (!newSubjectName) {
+      alert("Subject name is required");
+      return;
+    }
+    
+    setIsCreatingSubject(true);
+    try {
+      let finalCoverUrl = "";
+      let finalPdfUrl = "";
+
+      if (newSubjectCover) finalCoverUrl = await uploadFileToStorage(newSubjectCover, "covers");
+      if (newSubjectPdf) finalPdfUrl = await uploadFileToStorage(newSubjectPdf, "pdfs");
+
+      const payload = {
+        name: newSubjectName,
+        grade: selectedGrade,
+        region: selectedRegion,
+        coverImageUrl: finalCoverUrl,
+        bookPdfUrl: finalPdfUrl,
+        createdAt: serverTimestamp(),
+      };
+
+      const docRef = await addDoc(collection(db, "subjects"), payload);
+      
+      // Update local list so user doesn't have to wait for refetch
+      setSubjectsList(prev => [...prev, { id: docRef.id, name: newSubjectName }]);
+      setSelectedSubjectId(docRef.id);
+      
+      // Reset Modal State
+      setNewSubjectName("");
+      setNewSubjectCover(null);
+      setNewSubjectPdf(null);
+      setIsSubjectModalOpen(false);
+
+    } catch (err) {
+      console.error("Error creating subject:", err);
+      alert("Failed to create subject. Please try again.");
+    } finally {
+      setIsCreatingSubject(false);
+    }
+  };
+
 
   // --- Main Submit Logic ---
   const handleSubmit = async (e: React.FormEvent) => {
@@ -181,14 +246,12 @@ function AddEditContentForm() {
     }
 
     try {
-      // 1. Handle File Uploads (Only upload if a NEW file was selected)
       let finalCoverUrl = existingCoverUrl || "";
       let finalPdfUrl = existingPdfUrl || "";
 
       if (coverImage) finalCoverUrl = await uploadFileToStorage(coverImage, "covers");
       if (pdfFile) finalPdfUrl = await uploadFileToStorage(pdfFile, "pdfs");
 
-      // 2. Build Base Payload
       let payload: any = {
         grade: selectedGrade,
         region: selectedRegion,
@@ -200,7 +263,6 @@ function AddEditContentForm() {
         payload.createdAt = serverTimestamp();
       }
 
-      // 3. Append Specific Fields based on Content Type
       switch (contentType) {
         case "subject":
           payload.name = title;
@@ -233,7 +295,6 @@ function AddEditContentForm() {
           break;
       }
 
-      // 4. Write to Firestore (Update or Add)
       if (editId) {
         await updateDoc(doc(db, targetCollection, editId), payload);
       } else {
@@ -274,7 +335,7 @@ function AddEditContentForm() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto pb-20 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="max-w-4xl mx-auto pb-20 animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
       
       {/* Header */}
       <div className="flex items-center mb-8 bg-white p-6 rounded-[24px] shadow-sm border border-slate-100">
@@ -348,6 +409,35 @@ function AddEditContentForm() {
             </div>
             
             <div className="space-y-6">
+              
+              {/* Conditional Subjects Field - Dynamic Filter with Modal Trigger */}
+              {['lesson', 'exam', 'quiz'].includes(contentType) && (
+                <div>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Associated Subject <span className="text-red-500">*</span></label>
+                  <div className="flex gap-3">
+                    <select 
+                      required value={selectedSubjectId} onChange={(e) => setSelectedSubjectId(e.target.value)}
+                      disabled={!selectedGrade || !selectedRegion}
+                      className="flex-1 px-5 py-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none font-bold text-slate-700 transition-all disabled:opacity-50"
+                    >
+                      <option value="" disabled>
+                        {(!selectedGrade || !selectedRegion) ? "Select Grade & Region first" : "Select Subject"}
+                      </option>
+                      {subjectsList.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                    
+                    <button 
+                      type="button"
+                      onClick={() => setIsSubjectModalOpen(true)}
+                      disabled={!selectedGrade || !selectedRegion}
+                      className="px-5 py-4 bg-indigo-50 text-indigo-700 font-bold rounded-xl border border-indigo-200 hover:bg-indigo-100 hover:scale-105 transition-all disabled:opacity-50 disabled:hover:scale-100 flex items-center justify-center shrink-0"
+                    >
+                      <Plus className="w-5 h-5 mr-2" /> Create Subject
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Title / Name <span className="text-red-500">*</span></label>
                 <input 
@@ -356,20 +446,6 @@ function AddEditContentForm() {
                   className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none font-bold text-slate-800 transition-all placeholder:font-medium placeholder:text-slate-400"
                 />
               </div>
-
-              {/* Conditional Fields based on Type */}
-              {['lesson', 'exam', 'quiz'].includes(contentType) && (
-                <div>
-                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Associated Subject <span className="text-red-500">*</span></label>
-                  <select 
-                    required value={selectedSubjectId} onChange={(e) => setSelectedSubjectId(e.target.value)}
-                    className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none font-bold text-slate-700 transition-all"
-                  >
-                    <option value="" disabled>Select Subject Database Link</option>
-                    {subjectsList.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
-                </div>
-              )}
 
               {contentType === 'lesson' && (
                 <>
@@ -482,7 +558,7 @@ function AddEditContentForm() {
           </div>
 
           {/* Submit Action */}
-          <div className="pt-4 sticky bottom-6 z-50">
+          <div className="pt-4 sticky bottom-6 z-40">
             <button 
               type="submit" 
               disabled={isUploading}
@@ -498,6 +574,74 @@ function AddEditContentForm() {
 
         </form>
       )}
+
+      {/* --- INLINE SUBJECT CREATION MODAL --- */}
+      {isSubjectModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[99999] flex items-center justify-center p-4">
+          <div className="bg-white rounded-[32px] w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <div>
+                <h3 className="text-2xl font-black text-slate-800">Create New Subject</h3>
+                <p className="text-sm font-medium text-slate-500 mt-1">
+                  For: <span className="text-indigo-600 font-bold">{selectedGrade}</span> • <span className="text-indigo-600 font-bold">{selectedRegion}</span>
+                </p>
+              </div>
+              <button 
+                onClick={() => setIsSubjectModalOpen(false)}
+                className="w-10 h-10 bg-white border border-slate-200 rounded-full flex items-center justify-center hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-5 h-5 text-slate-500" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              <div>
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Subject Name <span className="text-red-500">*</span></label>
+                <input 
+                  type="text" value={newSubjectName} onChange={(e) => setNewSubjectName(e.target.value)}
+                  placeholder="e.g. Biology, Mathematics..."
+                  className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none font-bold text-slate-800 transition-all"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Cover Image</label>
+                  <label className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl cursor-pointer transition-all ${newSubjectCover ? 'border-indigo-400 bg-indigo-50' : 'border-slate-300 bg-slate-50 hover:bg-slate-100'}`}>
+                    {newSubjectCover ? <CheckCircle2 className="w-8 h-8 text-indigo-500" /> : <ImageIcon className="w-8 h-8 text-slate-400" />}
+                    <p className="text-xs font-bold text-slate-600 mt-2 text-center px-2 truncate w-full">{newSubjectCover ? newSubjectCover.name : 'Upload Cover'}</p>
+                    <input type="file" className="hidden" accept="image/*" onChange={(e) => setNewSubjectCover(e.target.files?.[0] || null)} />
+                  </label>
+                </div>
+                
+                <div>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Book PDF</label>
+                  <label className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl cursor-pointer transition-all ${newSubjectPdf ? 'border-emerald-400 bg-emerald-50' : 'border-slate-300 bg-slate-50 hover:bg-slate-100'}`}>
+                    {newSubjectPdf ? <Check className="w-8 h-8 text-emerald-500" /> : <FileType className="w-8 h-8 text-slate-400" />}
+                    <p className="text-xs font-bold text-slate-600 mt-2 text-center px-2 truncate w-full">{newSubjectPdf ? newSubjectPdf.name : 'Upload PDF'}</p>
+                    <input type="file" className="hidden" accept=".pdf" onChange={(e) => setNewSubjectPdf(e.target.files?.[0] || null)} />
+                  </label>
+                </div>
+              </div>
+
+              <button 
+                onClick={handleCreateSubject}
+                disabled={isCreatingSubject || !newSubjectName}
+                className="w-full mt-4 py-4 bg-slate-900 hover:bg-black text-white rounded-xl font-bold text-lg transition-all flex items-center justify-center disabled:opacity-50"
+              >
+                {isCreatingSubject ? (
+                  <><div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></div> Creating...</>
+                ) : (
+                  'Save Subject to Database'
+                )}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
