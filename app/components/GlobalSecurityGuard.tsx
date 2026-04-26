@@ -2,25 +2,56 @@
 
 import { useEffect, useState } from "react";
 import { ShieldAlert } from "lucide-react";
+import { auth, db } from "@/lib/firebase"; 
+import { onAuthStateChanged } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
+
+const EXEMPT_ROLES = ["admin", "sadmin", "badmin"];
 
 export default function GlobalSecurityGuard({ children }: { children: React.ReactNode }) {
   const [isBlackout, setIsBlackout] = useState(false);
+  const [isExempt, setIsExempt] = useState(false);
 
+  // 1. Check User Role Status
   useEffect(() => {
-    // 1. Disable Right-Click Globally
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        try {
+          const userDoc = await getDoc(doc(db, "users", user.uid));
+          const role = userDoc.data()?.role || "user";
+          
+          if (EXEMPT_ROLES.includes(role)) {
+            setIsExempt(true);
+          } else {
+            setIsExempt(false);
+          }
+        } catch (error) {
+          console.error("Error fetching user role for security guard:", error);
+          setIsExempt(false);
+        }
+      } else {
+        setIsExempt(false); // Not logged in = not exempt
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // 2. Apply Security Listeners (Only if NOT exempt)
+  useEffect(() => {
+    // Bail out completely if the user has an exempt role
+    if (isExempt) return;
+
     const handleContextMenu = (e: MouseEvent) => {
       e.preventDefault();
     };
 
-    // 2. Disable Keyboard Shortcuts (Copy, Save, Print, Inspect)
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Block PrintScreen Key
       if (e.key === "PrintScreen") {
-        navigator.clipboard.writeText(""); // Wipe clipboard
+        navigator.clipboard.writeText(""); 
         triggerBlackout();
       }
 
-      // Block Ctrl/Cmd + C, S, P, U, I (Copy, Save, Print, View Source, Inspect)
       if (
         (e.ctrlKey || e.metaKey) &&
         ["c", "s", "p", "u", "i"].includes(e.key.toLowerCase())
@@ -28,14 +59,11 @@ export default function GlobalSecurityGuard({ children }: { children: React.Reac
         e.preventDefault();
       }
 
-      // Block F12 (DevTools)
       if (e.key === "F12") {
         e.preventDefault();
       }
     };
 
-    // 3. Blur Detection (Catches Snipping Tool and OS-level overlays)
-    // When the browser loses focus, we black out the screen immediately.
     const handleBlur = () => {
       setIsBlackout(true);
     };
@@ -44,7 +72,6 @@ export default function GlobalSecurityGuard({ children }: { children: React.Reac
       setIsBlackout(false);
     };
 
-    // 4. Wipe Clipboard on Copy/Cut attempts
     const handleCopyCut = (e: ClipboardEvent) => {
       e.preventDefault();
       navigator.clipboard.writeText("");
@@ -67,34 +94,37 @@ export default function GlobalSecurityGuard({ children }: { children: React.Reac
       document.removeEventListener("copy", handleCopyCut);
       document.removeEventListener("cut", handleCopyCut);
     };
-  }, []);
+  }, [isExempt]); // Re-run this effect if exemption status changes
 
   const triggerBlackout = () => {
     setIsBlackout(true);
-    setTimeout(() => setIsBlackout(false), 3000); // Blackout for 3 seconds
+    setTimeout(() => setIsBlackout(false), 3000); 
   };
 
+  // 3. Render Output
   return (
     <>
-      {/* Aggressive CSS Injection to block printing and text selection globally */}
-      <style dangerouslySetInnerHTML={{__html: `
-        @media print {
-          html, body { 
-            display: none !important; 
-            background-color: black !important;
+      {/* Only inject the restrictive CSS if the user is NOT exempt */}
+      {!isExempt && (
+        <style dangerouslySetInnerHTML={{__html: `
+          @media print {
+            html, body { 
+              display: none !important; 
+              background-color: black !important;
+            }
           }
-        }
-        * {
-          -webkit-user-select: none !important;
-          -moz-user-select: none !important;
-          -ms-user-select: none !important;
-          user-select: none !important;
-          -webkit-touch-callout: none !important; /* Disables long-press on iOS */
-        }
-      `}} />
+          * {
+            -webkit-user-select: none !important;
+            -moz-user-select: none !important;
+            -ms-user-select: none !important;
+            user-select: none !important;
+            -webkit-touch-callout: none !important;
+          }
+        `}} />
+      )}
 
       {/* The Blackout Screen Overlay */}
-      {isBlackout && (
+      {isBlackout && !isExempt && (
         <div className="fixed inset-0 z-[99999] bg-black flex flex-col items-center justify-center text-center p-6">
           <ShieldAlert className="w-24 h-24 text-red-600 mb-6 animate-pulse" />
           <h1 className="text-3xl font-black text-red-600 mb-2">SECURITY PROTOCOL ACTIVATED</h1>
@@ -105,8 +135,8 @@ export default function GlobalSecurityGuard({ children }: { children: React.Reac
       )}
 
       {/* Standard App Content */}
-      {/* We hide the children entirely if blacked out to prevent DOM inspection while blurred */}
-      {!isBlackout && children}
+      {/* Hide children only if a blackout is actively triggered and the user is NOT exempt */}
+      {(!isBlackout || isExempt) && children}
     </>
   );
 }
