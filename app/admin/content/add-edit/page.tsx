@@ -7,7 +7,8 @@ import { collection, addDoc, doc, getDoc, updateDoc, getDocs, serverTimestamp } 
 import { 
   ArrowLeft, FileType, CheckCircle2, 
   AlertCircle, Image as ImageIcon, Save, Check, Lock,
-  Loader2
+  Loader2,
+  ArrowRight
 } from "lucide-react";
 import { Suspense, useEffect, useState } from "react";
 //import { useRouter } from "next/router";
@@ -317,12 +318,23 @@ function AddEditContentForm() {
         /* =========================================
            STEP 1: Load external PdfUpload component 
            ========================================= */
-        <PdfUpload 
-          onComplete={(processedFile: any) => { 
-            setPdfFile(processedFile); // Save it to state!
-            setStep(2); // Move to form!
-          }} 
-        />
+        <div className="space-y-6 animate-in slide-in-from-right-8 duration-500">
+          <PdfUpload 
+            onComplete={(processedFile: any) => { 
+              setPdfFile(processedFile); // Save it to state!
+              setStep(2); // Move to form!
+            }} 
+          />
+          
+          {/* THE NEW SKIP BUTTON */}
+          <button
+            type="button"
+            onClick={() => setStep(2)}
+            className="w-full py-4 bg-slate-200 text-slate-600 hover:bg-slate-300 hover:text-slate-800 rounded-2xl font-black text-lg transition-all shadow-sm flex items-center justify-center group"
+          >
+            Skip PDF Upload & Continue to Details <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+          </button>
+        </div>
 
       ) : (
 
