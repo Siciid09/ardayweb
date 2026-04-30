@@ -10,9 +10,9 @@ import {
   Loader2
 } from "lucide-react";
 import { Suspense, useEffect, useState } from "react";
-import { useRouter } from "next/router";
-import { useSearchParams } from "next/navigation";
-
+//import { useRouter } from "next/router";
+//import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 // IMPORT YOUR SEPARATE COMPONENT HERE
 import PdfUpload from "../../../components/pdfup"; 
 
