@@ -6,9 +6,24 @@ import { useRouter } from "next/navigation";
 import QuizManual from "../../../../components/quizemanual";
 import QuizAuto from "../../../../components//quizeauto";
 
+export interface SharedQuizData {
+  title: string;
+  subjectId: string;
+  grade: string;
+  region: string;
+  questions: any[];
+}
+
 export default function QuizManagerPage() {
   const router = useRouter();
   const [mode, setMode] = useState<"manual" | "auto">("manual");
+  const [sharedData, setSharedData] = useState<SharedQuizData | null>(null);
+
+  // When Auto is done, it calls this to switch to manual mode and pre-fill data
+  const handleAutoParseComplete = (data: SharedQuizData) => {
+    setSharedData(data);
+    setMode("manual");
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 pb-20">
@@ -49,7 +64,11 @@ export default function QuizManagerPage() {
 
       {/* Render Selected Mode */}
       <main className="max-w-5xl mx-auto px-6">
-        {mode === "manual" ? <QuizManual /> : <QuizAuto />}
+        {mode === "manual" ? (
+          <QuizManual initialData={sharedData} />
+        ) : (
+          <QuizAuto onParseComplete={handleAutoParseComplete} />
+        )}
       </main>
     </div>
   );
