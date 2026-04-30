@@ -248,7 +248,7 @@ export default function ContentManagementHub() {
               {/* Split Action Buttons */}
               <div className="flex items-center gap-3 mt-auto">
                 <button 
-                  onClick={() => type.id === 'quiz' ? router.push('/admin/quizzes/add') : router.push(`/admin/content/add-edit?type=${type.id}`)}
+                  onClick={() => type.id === 'quiz' ? router.push('/admin/content/list/quize') : router.push(`/admin/content/add-edit?type=${type.id}`)}
                   className="flex-1 py-3.5 px-2 bg-slate-900 text-white hover:bg-black rounded-xl font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center active:scale-[0.98]"
                 >
                   <Plus className="w-5 h-5 mr-1.5" /> Add

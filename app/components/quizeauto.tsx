@@ -62,7 +62,7 @@ export default function QuizAuto() {
 
       await batch.commit();
       alert(`Success! Imported ${parsedData.length} questions.`);
-      router.push(`/admin/quizzes`);
+      router.push(`/admin/content/list/quize`);
     } catch (err) {
       console.error(err);
       alert("Failed to batch upload questions.");

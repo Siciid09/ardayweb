@@ -192,7 +192,7 @@ function ContentListManager() {
         </div>
         
         <button 
-          onClick={() => type === 'quiz' ? router.push('/admin/quizzes/add') : router.push(`/admin/content/add-edit?type=${type}`)}
+          onClick={() => type === 'quiz' ? router.push('/admin/content/list/quize') : router.push(`/admin/content/add-edit?type=${type}`)}
           className="flex items-center px-6 py-3 bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl font-bold transition-transform active:scale-95 shadow-lg shadow-indigo-600/30 shrink-0"
         >
           <Plus className="w-5 h-5 mr-2" /> Add New {type}

@@ -69,7 +69,7 @@ export default function QuizManual() {
 
       await batch.commit();
       alert("Quiz successfully created!");
-      router.push(`/admin/quizzes`);
+      router.push(`/admin/content/list/quize`);
     } catch (err) {
       console.error(err);
       alert("Failed to save quiz.");
