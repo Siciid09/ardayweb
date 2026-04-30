@@ -9,8 +9,8 @@ import { Document, Page, pdfjs } from 'react-pdf';
 import { PDFDocument } from 'pdf-lib';
 import CanvasDraw from "react-canvas-draw";
 
-// PRODUCTION WORKER CONFIG: Uses a stable CDN link
-pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`;
+// PRODUCTION WORKER CONFIG: Uses unpkg to perfectly match your installed version
+pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 interface SmartEditorProps {
   onComplete: (processedBlob: Blob) => void;
