@@ -375,7 +375,7 @@ function ContentListManager() {
                     {/* Actions */}
                     <td className="p-4 flex justify-end gap-2">
                       <button 
-                        onClick={() => router.push(`/admin/content/add-edit?type=${type}&id=${item.id}`)}
+                        onClick={() => type === 'quiz' ? router.push(`/admin/content/list/quize?id=${item.id}`) : router.push(`/admin/content/add-edit?type=${type}&id=${item.id}`)}
                         className="p-2 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-lg transition-colors"
                         title="Edit"
                       >
