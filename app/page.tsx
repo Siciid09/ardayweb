@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import Image from "next/image";
 import { 
   ArrowRight, BookOpen, FileText, Download, Users, PlayCircle, 
   MessageCircle, Send, Star, CheckCircle2, ChevronRight, XCircle,
@@ -8,49 +9,140 @@ import {
 } from "lucide-react";
 
 // ==========================================
-// FULL SEO METADATA
+// 1. FULLY OPTIMIZED SEO METADATA
 // ==========================================
 export const metadata: Metadata = {
-  title: "ArdayCaawiye | The Ultimate Student Exam Toolkit",
+  metadataBase: new URL('https://www.ardaycaawiye.com'), // TODO: Replace with your actual domain
+  title: {
+    default: "ArdayCaawiye | The Ultimate Student Exam Toolkit",
+    template: "%s | ArdayCaawiye"
+  },
   description: "Prepare smarter, not harder. Access a massive digital library of past exams, textbooks, and study guides. Join 120K+ students achieving a 95% success rate.",
-  keywords: "exam preparation, past papers, student study hub, video lessons, high school exams, study guides, ArdayCaawiye",
+  keywords: ["exam preparation Somalia", "past papers", "student study hub", "video lessons", "high school exams", "study guides", "ArdayCaawiye", "Somali education"],
+  authors: [{ name: 'Hiigsitech' }],
+  creator: 'Hiigsitech',
+  publisher: 'ArdayCaawiye',
+  alternates: {
+    canonical: '/',
+  },
   openGraph: {
     title: "ArdayCaawiye | The Ultimate Exam Toolkit",
     description: "Your dedicated partner for academic success. Get instant access to exams, books, and interactive learning.",
-    type: "website",
-    locale: "en_US",
+    url: 'https://www.ardaycaawiye.com',
     siteName: "ArdayCaawiye",
+    images: [
+      {
+        url: '/og-image.jpg', // TODO: Add a 1200x630 image to your public folder
+        width: 1200,
+        height: 630,
+        alt: 'ArdayCaawiye Platform Preview',
+      },
+    ],
+    locale: "en_US", // Change to "so_SO" if the primary language is Somali
+    type: "website",
   },
+  twitter: {
+    card: "summary_large_image",
+    title: "ArdayCaawiye | The Ultimate Exam Toolkit",
+    description: "Access a massive digital library of past exams, textbooks, and study guides.",
+    images: ['/og-image.jpg'],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
+};
+
+// ==========================================
+// 2. GOOGLE STRUCTURED DATA (JSON-LD)
+// ==========================================
+const structuredData = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "name": "ArdayCaawiye",
+      "applicationCategory": "EducationalApplication",
+      "operatingSystem": "Android, Web",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "aggregateRating": {
+        "@type": "AggregateRating",
+        "ratingValue": "4.9",
+        "ratingCount": "120000"
+      }
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "How do I access the materials?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Simply create a free account, log into the dashboard, and you will instantly have access to our entire library of subjects, videos, and exams."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Can I use the platform on my phone?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Absolutely. ArdayCaawiye is fully optimized for mobile devices. You can use our web dashboard or download our dedicated Android app."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Are the past papers up to date?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes, we constantly update our repository with the latest official examinations and highly accurate answer keys."
+          }
+        }
+      ]
+    }
+  ]
 };
 
 export default function HomePage() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans overflow-x-hidden">
+      {/* Inject JSON-LD into the DOM for Google to read */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
       
-      {/* =========================================
-          HEADER (Fixed to top, ONLY Logo)
-      ========================================= */}
+      {/* HEADER */}
       <header className="fixed top-0 left-0 w-full bg-white/90 backdrop-blur-xl border-b border-slate-200/50 z-50 py-3">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-center md:justify-start">
-          <Link href="/" className="flex items-center gap-2 group">
+          <Link href="/" className="flex items-center gap-2 group" aria-label="ArdayCaawiye Homepage">
             <div className="w-10 h-10 bg-blue-700 rounded-xl flex items-center justify-center group-hover:bg-blue-800 transition-colors shadow-md shadow-blue-700/20">
-              <BookOpen className="w-6 h-6 text-white" />
+              <BookOpen className="w-6 h-6 text-white" aria-hidden="true" />
             </div>
             <span className="text-2xl font-black tracking-tight text-blue-900">ArdayCaawiye</span>
           </Link>
         </div>
       </header>
 
-      <main className="pt-20"> {/* Offset for fixed header */}
+      <main className="pt-20"> 
         
-        {/* =========================================
-            SECTION 1: HERO (Existing)
-        ========================================= */}
+        {/* HERO SECTION */}
         <section className="relative pt-8 pb-24 lg:pt-10 lg:pb-32 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto flex flex-col items-center text-center">
           <div className="absolute top-10 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-blue-600/10 blur-[100px] -z-10 rounded-full pointer-events-none"></div>
 
           <div className="inline-flex items-center space-x-2 bg-white border border-slate-200 px-4 py-2 rounded-full mb-8 shadow-sm">
-            <Star className="w-4 h-4 text-blue-600 fill-blue-600" />
+            <Star className="w-4 h-4 text-blue-600 fill-blue-600" aria-hidden="true" />
             <span className="text-sm font-bold text-blue-900">The #1 Platform for Academic Success</span>
           </div>
 
@@ -66,24 +158,24 @@ export default function HomePage() {
           <div className="flex flex-col sm:flex-row items-center gap-4 w-full justify-center">
             <Link 
               href="/dashboard"
+              aria-label="Access the Study Hub Dashboard"
               className="w-full sm:w-auto px-8 py-4 bg-blue-700 hover:bg-blue-800 text-white rounded-2xl font-black text-lg transition-all shadow-xl shadow-blue-700/30 flex items-center justify-center group"
             >
-              Access Study Hub <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+              Access Study Hub <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" aria-hidden="true" />
             </Link>
             <a 
               href="https://play.google.com/store/apps/details?id=com.ardaycaawiye.app" 
               target="_blank" rel="noopener noreferrer"
+              aria-label="Download the ArdayCaawiye Android App from Google Play"
               className="w-full sm:w-auto px-8 py-4 bg-white border-2 border-slate-200 hover:border-blue-200 hover:bg-blue-50 text-blue-900 rounded-2xl font-bold text-lg transition-all flex items-center justify-center"
             >
-              <Download className="w-5 h-5 mr-2" /> Download Android App
+              <Download className="w-5 h-5 mr-2" aria-hidden="true" /> Download Android App
             </a>
           </div>
         </section>
 
-        {/* =========================================
-            SECTION 2: STATISTICS (Existing)
-        ========================================= */}
-        <section className="border-y border-slate-200 bg-white">
+        {/* STATISTICS */}
+        <section className="border-y border-slate-200 bg-white" aria-label="Platform Statistics">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-8 divide-x divide-slate-100">
               <StatBlock value="120K+" label="Students" />
@@ -96,19 +188,17 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* =========================================
-            SECTION 3: PROBLEM VS SOLUTION (NEW)
-        ========================================= */}
-        <section className="bg-blue-900 py-24 text-white relative overflow-hidden">
+        {/* PROBLEM VS SOLUTION */}
+        <section className="bg-blue-900 py-24 text-white relative overflow-hidden" aria-labelledby="better-way-heading">
           <div className="absolute top-0 right-0 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl pointer-events-none"></div>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-5xl font-black mb-4">A better way to study.</h2>
+              <h2 id="better-way-heading" className="text-3xl md:text-5xl font-black mb-4">A better way to study.</h2>
               <p className="text-blue-200 font-medium text-lg">Leave the old, scattered methods behind.</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto">
               <div className="bg-slate-900/50 border border-slate-700 p-8 rounded-[32px] backdrop-blur-sm">
-                <div className="flex items-center text-red-400 font-bold mb-6 text-lg"><XCircle className="w-6 h-6 mr-2" /> The Old Way</div>
+                <div className="flex items-center text-red-400 font-bold mb-6 text-lg"><XCircle className="w-6 h-6 mr-2" aria-hidden="true" /> The Old Way</div>
                 <ul className="space-y-4 text-slate-300 font-medium">
                   <li>• Carrying heavy, outdated textbooks.</li>
                   <li>• Searching endlessly for reliable past papers.</li>
@@ -117,7 +207,7 @@ export default function HomePage() {
                 </ul>
               </div>
               <div className="bg-blue-600/20 border border-blue-500 p-8 rounded-[32px] backdrop-blur-sm shadow-2xl shadow-blue-500/20">
-                <div className="flex items-center text-blue-300 font-bold mb-6 text-lg"><CheckCircle2 className="w-6 h-6 mr-2" /> The ArdayCaawiye Way</div>
+                <div className="flex items-center text-blue-300 font-bold mb-6 text-lg"><CheckCircle2 className="w-6 h-6 mr-2" aria-hidden="true" /> The ArdayCaawiye Way</div>
                 <ul className="space-y-4 text-white font-medium">
                   <li>• Everything you need on your phone or laptop.</li>
                   <li>• Thousands of verified past papers instantly.</li>
@@ -129,18 +219,15 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* =========================================
-            SECTION 4: HOW IT WORKS (NEW)
-        ========================================= */}
-        <section className="py-24 bg-slate-50">
+        {/* HOW IT WORKS */}
+        <section className="py-24 bg-slate-50" aria-labelledby="how-it-works-heading">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-4xl font-black text-blue-900 mb-4">Your Path to Excellence.</h2>
+              <h2 id="how-it-works-heading" className="text-3xl md:text-4xl font-black text-blue-900 mb-4">Your Path to Excellence.</h2>
               <p className="text-slate-500 font-medium text-lg">Three simple steps to completely transform your grades.</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
               <div className="hidden md:block absolute top-12 left-[15%] right-[15%] h-0.5 bg-blue-200 -z-10"></div>
-              
               <StepCard number="01" title="Create your Profile" desc="Set up your account in seconds and access the dashboard." />
               <StepCard number="02" title="Select your Subject" desc="Choose from Biology, Math, Physics, and more." />
               <StepCard number="03" title="Master the Exams" desc="Watch videos, read books, and practice past papers." />
@@ -148,41 +235,37 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* =========================================
-            SECTION 5: BENTO FEATURES (Existing)
-        ========================================= */}
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-24">
+        {/* BENTO FEATURES */}
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-24" aria-labelledby="features-heading">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-black text-blue-900 mb-4">The Ultimate Exam Toolkit</h2>
+            <h2 id="features-heading" className="text-3xl md:text-4xl font-black text-blue-900 mb-4">The Ultimate Exam Toolkit</h2>
             <p className="text-slate-500 font-medium text-lg">Everything you need to guarantee your success, all in one place.</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <FeatureCard 
-              icon={<FileText className="w-7 h-7 text-blue-600 group-hover:text-white transition-colors" />}
+              icon={<FileText className="w-7 h-7 text-blue-600 group-hover:text-white transition-colors" aria-hidden="true" />}
               title="Past Exams" desc="Practice with hundreds of official past papers and verified answer keys to test your readiness."
             />
             <FeatureCard 
-              icon={<BookOpen className="w-7 h-7 text-blue-600 group-hover:text-white transition-colors" />}
+              icon={<BookOpen className="w-7 h-7 text-blue-600 group-hover:text-white transition-colors" aria-hidden="true" />}
               title="Digital Library" desc="Access required textbooks and custom study guides tailored specifically for your curriculum."
             />
             <FeatureCard 
-              icon={<PlayCircle className="w-7 h-7 text-blue-600 group-hover:text-white transition-colors" />}
+              icon={<PlayCircle className="w-7 h-7 text-blue-600 group-hover:text-white transition-colors" aria-hidden="true" />}
               title="Video Lessons" desc="Learn complex topics easily with high-quality video breakdowns from top educators."
             />
           </div>
         </section>
 
-        {/* =========================================
-            SECTION 6: DEEP DIVE - VIDEOS (NEW)
-        ========================================= */}
+        {/* DEEP DIVE - VIDEOS */}
         <section className="bg-white py-24 border-y border-slate-200">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center gap-12">
             <div className="flex-1 w-full order-2 md:order-1">
-              <div className="aspect-video bg-slate-100 rounded-[32px] border border-slate-200 shadow-xl overflow-hidden relative flex items-center justify-center group cursor-pointer">
+              <div className="aspect-video bg-slate-100 rounded-[32px] border border-slate-200 shadow-xl overflow-hidden relative flex items-center justify-center group cursor-pointer" aria-label="Watch video lesson preview">
                 <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1516321497487-e288fb19713f?q=80&w=2070&auto=format&fit=crop')] bg-cover bg-center opacity-40 mix-blend-multiply"></div>
                 <div className="w-20 h-20 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-2xl group-hover:scale-110 transition-transform z-10">
-                  <PlayCircle className="w-10 h-10 text-blue-700 ml-1" />
+                  <PlayCircle className="w-10 h-10 text-blue-700 ml-1" aria-hidden="true" />
                 </div>
               </div>
             </div>
@@ -192,15 +275,13 @@ export default function HomePage() {
                 Stop struggling with confusing textbooks. Our cinematic video lessons break down the most complex subjects into bite-sized, visual explanations. Rewatch, pause, and master concepts at your own pace.
               </p>
               <Link href="/dashboard" className="inline-flex items-center px-6 py-3 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-xl font-bold transition-colors">
-                Explore Video Library <ArrowRight className="w-5 h-5 ml-2" />
+                Explore Video Library <ArrowRight className="w-5 h-5 ml-2" aria-hidden="true" />
               </Link>
             </div>
           </div>
         </section>
 
-        {/* =========================================
-            SECTION 7: DEEP DIVE - EXAMS (NEW)
-        ========================================= */}
+        {/* DEEP DIVE - EXAMS */}
         <section className="bg-slate-50 py-24">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center gap-12">
             <div className="flex-1">
@@ -209,10 +290,10 @@ export default function HomePage() {
                 We have compiled the largest digital repository of official past papers and answer keys. Practice with real exam formatting so you are completely prepared when test day arrives.
               </p>
               <Link href="/dashboard" className="inline-flex items-center px-6 py-3 bg-white border border-slate-200 text-blue-700 hover:border-blue-300 hover:bg-blue-50 rounded-xl font-bold transition-colors shadow-sm">
-                Browse Past Papers <ArrowRight className="w-5 h-5 ml-2" />
+                Browse Past Papers <ArrowRight className="w-5 h-5 ml-2" aria-hidden="true" />
               </Link>
             </div>
-            <div className="flex-1 w-full">
+            <div className="flex-1 w-full" aria-hidden="true">
               <div className="aspect-square max-h-[400px] mx-auto bg-white rounded-[32px] border border-slate-200 shadow-2xl p-8 relative overflow-hidden flex flex-col">
                 <div className="flex items-center justify-between mb-8 border-b border-slate-100 pb-4">
                   <div className="w-32 h-4 bg-slate-200 rounded-full"></div>
@@ -230,13 +311,11 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* =========================================
-            SECTION 8: SUBJECT COVERAGE (NEW)
-        ========================================= */}
-        <section className="py-24 bg-white border-y border-slate-200">
+        {/* SUBJECT COVERAGE */}
+        <section className="py-24 bg-white border-y border-slate-200" aria-labelledby="subjects-heading">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-4xl font-black text-blue-900 mb-4">Comprehensive Syllabus Coverage.</h2>
+              <h2 id="subjects-heading" className="text-3xl md:text-4xl font-black text-blue-900 mb-4">Comprehensive Syllabus Coverage.</h2>
               <p className="text-slate-500 font-medium text-lg">Every subject you need, meticulously organized.</p>
             </div>
             <div className="flex flex-wrap justify-center gap-4">
@@ -249,12 +328,10 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* =========================================
-            SECTION 9: PROGRESS ANALYTICS (NEW)
-        ========================================= */}
+        {/* PROGRESS ANALYTICS */}
         <section className="bg-slate-50 py-24 overflow-hidden">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center gap-12">
-            <div className="flex-1 w-full order-2 md:order-1 relative">
+            <div className="flex-1 w-full order-2 md:order-1 relative" aria-hidden="true">
               <div className="absolute top-0 right-0 w-64 h-64 bg-blue-400/20 rounded-full blur-3xl pointer-events-none"></div>
               <div className="bg-white p-8 rounded-[32px] border border-slate-200 shadow-xl relative z-10">
                 <div className="flex items-center mb-6">
@@ -283,12 +360,10 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* =========================================
-            SECTION 10: EXPERT EDUCATORS (NEW)
-        ========================================= */}
+        {/* EXPERT EDUCATORS */}
         <section className="bg-blue-900 py-24 text-white">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-            <GraduationCap className="w-16 h-16 text-blue-400 mx-auto mb-6" />
+            <GraduationCap className="w-16 h-16 text-blue-400 mx-auto mb-6" aria-hidden="true" />
             <h2 className="text-4xl md:text-5xl font-black mb-6">Learn from the Best.</h2>
             <p className="text-blue-200 font-medium text-lg max-w-2xl mx-auto mb-10">
               Our content is curated and taught by highly experienced, certified educators who have a proven track record of producing top-ranking students nationwide.
@@ -299,13 +374,11 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* =========================================
-            SECTION 11: TESTIMONIALS (Existing)
-        ========================================= */}
-        <section className="bg-slate-50 py-24 border-t border-slate-200">
+        {/* TESTIMONIALS */}
+        <section className="bg-slate-50 py-24 border-t border-slate-200" aria-labelledby="testimonials-heading">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-4xl font-black text-blue-900 mb-4">Trusted by Students</h2>
+              <h2 id="testimonials-heading" className="text-3xl md:text-4xl font-black text-blue-900 mb-4">Trusted by Students</h2>
               <p className="text-slate-500 font-medium text-lg">See what your peers are saying about ArdayCaawiye.</p>
             </div>
             
@@ -326,13 +399,11 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* =========================================
-            SECTION 12: F.A.Q. (NEW)
-        ========================================= */}
-        <section className="bg-white py-24 border-t border-slate-200">
+        {/* F.A.Q. */}
+        <section className="bg-white py-24 border-t border-slate-200" aria-labelledby="faq-heading">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-4xl font-black text-blue-900 mb-4">Got Questions?</h2>
+              <h2 id="faq-heading" className="text-3xl md:text-4xl font-black text-blue-900 mb-4">Got Questions?</h2>
               <p className="text-slate-500 font-medium text-lg">Everything you need to know about getting started.</p>
             </div>
             <div className="space-y-4">
@@ -352,17 +423,15 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* =========================================
-            SECTION 13: COMMUNITY & UPDATES (Existing)
-        ========================================= */}
+        {/* COMMUNITY & UPDATES */}
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="bg-emerald-50 rounded-[32px] p-8 md:p-12 border border-emerald-100 flex flex-col items-start relative overflow-hidden group">
               <div className="absolute right-0 bottom-0 opacity-10 transform translate-x-8 translate-y-8 group-hover:scale-110 transition-transform">
-                <MessageCircle className="w-64 h-64 text-emerald-600" />
+                <MessageCircle className="w-64 h-64 text-emerald-600" aria-hidden="true" />
               </div>
               <div className="w-16 h-16 bg-emerald-500 text-white rounded-2xl flex items-center justify-center mb-6 relative z-10 shadow-lg shadow-emerald-500/30">
-                <MessageCircle className="w-8 h-8" />
+                <MessageCircle className="w-8 h-8" aria-hidden="true" />
               </div>
               <h3 className="text-3xl font-black text-slate-900 mb-4 relative z-10">Join our Community</h3>
               <p className="text-slate-600 font-medium mb-8 text-lg relative z-10 max-w-sm">
@@ -371,18 +440,19 @@ export default function HomePage() {
               <a 
                 href="https://api.whatsapp.com/send/?phone=252633227084&text&type=phone_number&app_absent=0" 
                 target="_blank" rel="noopener noreferrer"
+                aria-label="Join our WhatsApp student community"
                 className="mt-auto px-8 py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold transition-colors relative z-10 flex items-center"
               >
-                Join WhatsApp Group <ChevronRight className="w-5 h-5 ml-1" />
+                Join WhatsApp Group <ChevronRight className="w-5 h-5 ml-1" aria-hidden="true" />
               </a>
             </div>
 
             <div className="bg-sky-50 rounded-[32px] p-8 md:p-12 border border-sky-100 flex flex-col items-start relative overflow-hidden group">
               <div className="absolute right-0 bottom-0 opacity-10 transform translate-x-8 translate-y-8 group-hover:scale-110 transition-transform">
-                <Send className="w-64 h-64 text-sky-600" />
+                <Send className="w-64 h-64 text-sky-600" aria-hidden="true" />
               </div>
               <div className="w-16 h-16 bg-sky-500 text-white rounded-2xl flex items-center justify-center mb-6 relative z-10 shadow-lg shadow-sky-500/30">
-                <Send className="w-8 h-8" />
+                <Send className="w-8 h-8" aria-hidden="true" />
               </div>
               <h3 className="text-3xl font-black text-slate-900 mb-4 relative z-10">Get Instant Updates</h3>
               <p className="text-slate-600 font-medium mb-8 text-lg relative z-10 max-w-sm">
@@ -391,17 +461,16 @@ export default function HomePage() {
               <a 
                 href="#" 
                 target="_blank" rel="noopener noreferrer"
+                aria-label="Subscribe to our Telegram channel"
                 className="mt-auto px-8 py-4 bg-sky-500 hover:bg-sky-600 text-white rounded-xl font-bold transition-colors relative z-10 flex items-center"
               >
-                Subscribe to Telegram <ChevronRight className="w-5 h-5 ml-1" />
+                Subscribe to Telegram <ChevronRight className="w-5 h-5 ml-1" aria-hidden="true" />
               </a>
             </div>
           </div>
         </section>
 
-        {/* =========================================
-            SECTION 14: FINAL APP DOWNLOAD CTA (Existing)
-        ========================================= */}
+        {/* FINAL APP DOWNLOAD CTA */}
         <section className="px-4 sm:px-6 lg:px-8 pb-24">
           <div className="max-w-5xl mx-auto bg-blue-700 rounded-[40px] p-10 md:p-16 text-center text-white shadow-2xl relative overflow-hidden">
             <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl -mr-32 -mt-32 pointer-events-none"></div>
@@ -415,12 +484,22 @@ export default function HomePage() {
               <a 
                 href="https://play.google.com/store/apps/details?id=com.ardaycaawiye.app"
                 target="_blank" rel="noopener noreferrer"
+                aria-label="Download on Google Play Store"
                 className="w-full sm:w-auto px-8 py-4 bg-white text-blue-900 hover:bg-slate-50 rounded-2xl font-black text-lg shadow-xl transition-transform hover:scale-105 flex items-center justify-center"
               >
-                <img src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg" alt="Google Play" className="h-8 mr-2" />
+                {/* Changed to Next.js Image component for performance/SEO */}
+                <Image 
+                  src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg" 
+                  alt="Get it on Google Play Badge" 
+                  width={135} 
+                  height={40} 
+                  className="h-8 w-auto mr-2"
+                  unoptimized // Bypasses the need to configure remote domains in next.config.js
+                />
               </a>
               <button 
                 disabled
+                aria-disabled="true"
                 className="w-full sm:w-auto px-8 py-4 bg-blue-800/50 border border-blue-600 text-blue-300 rounded-2xl font-bold text-lg flex items-center justify-center cursor-not-allowed"
               >
                 App Store (Coming Soon)
@@ -437,16 +516,14 @@ export default function HomePage() {
 
       </main>
 
-      {/* =========================================
-          FOOTER (Existing)
-      ========================================= */}
-      <footer className="bg-white border-t border-slate-200 pt-16 pb-8">
+      {/* FOOTER */}
+      <footer className="bg-white border-t border-slate-200 pt-16 pb-8" role="contentinfo">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-12">
             <div className="md:col-span-2">
               <div className="flex items-center gap-2 mb-6">
                 <div className="w-8 h-8 bg-blue-700 rounded-lg flex items-center justify-center">
-                  <BookOpen className="w-5 h-5 text-white" />
+                  <BookOpen className="w-5 h-5 text-white" aria-hidden="true" />
                 </div>
                 <span className="text-2xl font-black tracking-tight text-blue-900">ArdayCaawiye</span>
               </div>
@@ -456,20 +533,24 @@ export default function HomePage() {
             </div>
             <div>
               <h4 className="font-black text-slate-900 mb-6 uppercase tracking-wider text-sm">Quick Links</h4>
-              <ul className="space-y-4">
-                <li><Link href="/" className="text-slate-500 font-medium hover:text-blue-700 transition">Home</Link></li>
-                <li><Link href="/dashboard" className="text-slate-500 font-medium hover:text-blue-700 transition">Exams</Link></li>
-                <li><Link href="/dashboard" className="text-slate-500 font-medium hover:text-blue-700 transition">Books</Link></li>
-                <li><Link href="/dashboard" className="text-slate-500 font-medium hover:text-blue-700 transition">Scholarships</Link></li>
-              </ul>
+              <nav aria-label="Footer Quick Links">
+                <ul className="space-y-4">
+                  <li><Link href="/" className="text-slate-500 font-medium hover:text-blue-700 transition">Home</Link></li>
+                  <li><Link href="/dashboard" className="text-slate-500 font-medium hover:text-blue-700 transition">Exams</Link></li>
+                  <li><Link href="/dashboard" className="text-slate-500 font-medium hover:text-blue-700 transition">Books</Link></li>
+                  <li><Link href="/dashboard" className="text-slate-500 font-medium hover:text-blue-700 transition">Scholarships</Link></li>
+                </ul>
+              </nav>
             </div>
             <div>
               <h4 className="font-black text-slate-900 mb-6 uppercase tracking-wider text-sm">Company</h4>
-              <ul className="space-y-4">
-                <li><Link href="/dashboard" className="text-slate-500 font-medium hover:text-blue-700 transition">About Us</Link></li>
-                <li><Link href="/dashboard" className="text-slate-500 font-medium hover:text-blue-700 transition">Blog</Link></li>
-                <li><Link href="/dashboard" className="text-slate-500 font-medium hover:text-blue-700 transition">Contact</Link></li>
-              </ul>
+              <nav aria-label="Footer Company Links">
+                <ul className="space-y-4">
+                  <li><Link href="/dashboard" className="text-slate-500 font-medium hover:text-blue-700 transition">About Us</Link></li>
+                  <li><Link href="/dashboard" className="text-slate-500 font-medium hover:text-blue-700 transition">Blog</Link></li>
+                  <li><Link href="/dashboard" className="text-slate-500 font-medium hover:text-blue-700 transition">Contact</Link></li>
+                </ul>
+              </nav>
             </div>
           </div>
           <div className="border-t border-slate-100 pt-8 flex flex-col md:flex-row items-center justify-between text-sm font-bold text-slate-400">
@@ -485,7 +566,7 @@ export default function HomePage() {
   );
 }
 
-// --- Small Reusable Components ---
+// --- Reusable Components (Accessible) ---
 
 function StatBlock({ value, label, highlight = false }: { value: string, label: string, highlight?: boolean }) {
   return (
@@ -498,7 +579,7 @@ function StatBlock({ value, label, highlight = false }: { value: string, label: 
 
 function FeatureCard({ icon, title, desc }: { icon: React.ReactNode, title: string, desc: string }) {
   return (
-    <Link href="/dashboard" className="bg-white rounded-[32px] p-8 md:p-10 shadow-sm border border-slate-200 hover:shadow-xl hover:border-blue-200 hover:-translate-y-2 transition-all group">
+    <Link href="/dashboard" aria-label={`Learn more about ${title}`} className="bg-white rounded-[32px] p-8 md:p-10 shadow-sm border border-slate-200 hover:shadow-xl hover:border-blue-200 hover:-translate-y-2 transition-all group">
       <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-blue-600 transition-colors">
         {icon}
       </div>
@@ -522,29 +603,31 @@ function StepCard({ number, title, desc }: { number: string, title: string, desc
 
 function FaqCard({ q, a }: { q: string, a: string }) {
   return (
-    <div className="bg-slate-50 p-6 md:p-8 rounded-[24px] border border-slate-200">
+    <article className="bg-slate-50 p-6 md:p-8 rounded-[24px] border border-slate-200">
       <div className="flex items-start">
-        <HelpCircle className="w-6 h-6 text-blue-600 mr-4 shrink-0 mt-1" />
+        <HelpCircle className="w-6 h-6 text-blue-600 mr-4 shrink-0 mt-1" aria-hidden="true" />
         <div>
           <h3 className="font-black text-lg text-slate-800 mb-2">{q}</h3>
           <p className="text-slate-500 font-medium leading-relaxed">{a}</p>
         </div>
       </div>
-    </div>
+    </article>
   );
 }
 
 function TestimonialCard({ text, name }: { text: string, name: string }) {
   return (
-    <div className="bg-white p-8 rounded-[32px] border border-slate-200 shadow-sm flex flex-col">
-      <div className="flex text-amber-400 mb-6">
+    <figure className="bg-white p-8 rounded-[32px] border border-slate-200 shadow-sm flex flex-col m-0">
+      <div className="flex text-amber-400 mb-6" aria-label="5 out of 5 stars">
         <Star className="w-5 h-5 fill-amber-400" /><Star className="w-5 h-5 fill-amber-400" /><Star className="w-5 h-5 fill-amber-400" /><Star className="w-5 h-5 fill-amber-400" /><Star className="w-5 h-5 fill-amber-400" />
       </div>
-      <p className="text-slate-700 font-medium text-lg leading-relaxed mb-8 flex-1">"{text}"</p>
-      <div className="flex items-center border-t border-slate-100 pt-6">
-        <div className="w-12 h-12 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center font-black mr-4"><Users className="w-6 h-6" /></div>
+      <blockquote className="text-slate-700 font-medium text-lg leading-relaxed mb-8 flex-1">
+        "{text}"
+      </blockquote>
+      <figcaption className="flex items-center border-t border-slate-100 pt-6">
+        <div className="w-12 h-12 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center font-black mr-4"><Users className="w-6 h-6" aria-hidden="true" /></div>
         <p className="font-bold text-slate-900">{name}</p>
-      </div>
-    </div>
+      </figcaption>
+    </figure>
   );
 }

@@ -25,3 +25,11 @@ export function initAdmin() {
 
   return admin.app();
 }
+
+// 4. Actually run the initialization!
+initAdmin();
+
+// 5. Safely export the services. 
+// (If Vercel skipped initialization during build, we export a safe fallback to prevent crashes)
+export const adminDb = admin.apps.length > 0 ? admin.firestore() : null as any;
+export const adminMessaging = admin.apps.length > 0 ? admin.messaging() : null as any;
