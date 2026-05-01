@@ -1,18 +1,20 @@
 export const dynamic = "force-dynamic"; // <-- ADD THIS TO THE VERY TOP
 import { NextResponse } from "next/server";
-import { initAdmin } from "@/lib/firebaseAdmin"; // We will create this helper next
+import { adminDb } from "@/lib/firebaseAdmin"; // <-- New smart DB
 import { getAuth } from "firebase-admin/auth";
-import { getFirestore } from "firebase-admin/firestore";
 
 // Define the allowed roles to prevent injection of invalid roles
 const ALLOWED_ROLES = ["user", "reagent", "hoadmin"];
 
 export async function POST(req: Request) {
   try {
-    // 1. Initialize Firebase Admin (Safe for Next.js hot-reloading)
-    initAdmin();
     const auth = getAuth();
-    const db = getFirestore();
+    const db = adminDb;
+
+    // Safety check in case Vercel env variables are missing
+    if (!db) {
+      return NextResponse.json({ error: "Database not initialized" }, { status: 500 });
+    }
 
     // 2. Parse the Request Body
     const body = await req.json();
