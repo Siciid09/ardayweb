@@ -1,10 +1,19 @@
-// app/api/notify/route.ts
+export const dynamic = "force-dynamic";
+
 import { NextResponse, NextRequest } from 'next/server';
-import { adminDb, adminMessaging } from '../../../../lib/firebaseAdmin';
-import admin from 'firebase-admin'; // Needed for FieldValue
+import { adminDb, adminMessaging } from '@/lib/firebaseAdmin';
+import { FieldValue } from 'firebase-admin/firestore'; // Safe import
 
 export async function POST(request: NextRequest) {
   try {
+    // 1. SAFETY CHECK (This fixes the TypeScript "possibly null" error!)
+    if (!adminDb || !adminMessaging) {
+      return NextResponse.json(
+        { error: 'Firebase Admin not initialized. Check server logs.' },
+        { status: 500 }
+      );
+    }
+
     const body = await request.json();
     const { title, messageBody, topic } = body;
 
@@ -16,23 +25,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 1. Save the notification to Firestore (so it shows in the app's history)
+    // 2. Save the notification to Firestore
+    // TypeScript now knows adminDb is 100% safe to use because of the check above!
     await adminDb.collection('notifications').add({
       title: title,
       body: messageBody,
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      timestamp: FieldValue.serverTimestamp(),
     });
 
-    // 2. Build the FCM Message payload
+    // 3. Build the FCM Message payload
     const message = {
       notification: {
         title: title,
         body: messageBody,
       },
-      topic: topic || 'all_users', // Default to all_users
+      topic: topic || 'all_users',
     };
 
-    // 3. Send the Push Notification
+    // 4. Send the Push Notification
     const response = await adminMessaging.send(message);
     
     return NextResponse.json({ 
