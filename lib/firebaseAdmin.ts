@@ -1,37 +1,34 @@
 import * as admin from 'firebase-admin';
 
-// 1. Check if variables exist
 const projectId = process.env.FIREBASE_PROJECT_ID;
 const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
 const privateKey = process.env.FIREBASE_PRIVATE_KEY;
 
 if (!projectId || !clientEmail || !privateKey) {
-  console.error(`
-    🚨 FIREBASE ADMIN INIT FAILED! 🚨
-    Missing Environment Variables:
-    PROJECT_ID: ${!!projectId}
-    CLIENT_EMAIL: ${!!clientEmail}
-    PRIVATE_KEY: ${!!privateKey}
-  `);
+  console.error("🚨 FIREBASE ADMIN INIT FAILED: Missing Environment Variables.");
 }
 
-// 2. Initialize App
 if (!admin.apps.length && projectId && clientEmail && privateKey) {
   try {
-    // --- THE ULTIMATE KEY SANITIZER ---
     let formattedKey = privateKey;
-    
-    // Step A: Strip accidental quotation marks if Vercel added them
-    if (formattedKey.startsWith('"') && formattedKey.endsWith('"')) {
-      formattedKey = formattedKey.slice(1, -1);
+
+    // --- GOD MODE SANITIZER ---
+    try {
+      // TRAP 1: Did Vercel wrap it in quotes? JSON.parse removes them and fixes \n automatically.
+      // TRAP 2: Did you accidentally paste the ENTIRE Firebase JSON file? This extracts just the key.
+      const parsed = JSON.parse(privateKey);
+      if (parsed && parsed.private_key) {
+        formattedKey = parsed.private_key; 
+      } else if (typeof parsed === 'string') {
+        formattedKey = parsed;
+      }
+    } catch (e) {
+      // Not JSON, which is fine! Proceed to manual cleanup.
     }
-    if (formattedKey.startsWith("'") && formattedKey.endsWith("'")) {
-      formattedKey = formattedKey.slice(1, -1);
-    }
-    
-    // Step B: Convert literal string "\n" into actual newlines
-    formattedKey = formattedKey.replace(/\\n/g, '\n');
-    // ----------------------------------
+
+    // TRAP 3: Fallback manual cleanup for stray quotes and raw \n text characters
+    formattedKey = formattedKey.replace(/^"|"$/g, '').replace(/\\n/g, '\n');
+    // ---------------------------
 
     admin.initializeApp({
       credential: admin.credential.cert({
@@ -46,7 +43,5 @@ if (!admin.apps.length && projectId && clientEmail && privateKey) {
   }
 }
 
-// 3. Export Database and Messaging
-// If it fails to initialize, this will explicitly tell your API route to throw a proper error
 export const adminDb = admin.apps.length ? admin.firestore() : null;
 export const adminMessaging = admin.apps.length ? admin.messaging() : null;
