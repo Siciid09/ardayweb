@@ -45,7 +45,7 @@ export async function POST(req: Request) {
     const requesterRole = requesterDoc.data()?.role;
 
     // 5. THE TRICK LOGIC (Routing the data)
-    if (requesterRole === "hoadmin") {
+    if (requesterRole === "badmin") {
       // SUPER ADMIN: Write to the core user document
       await db.collection("users").doc(userId).update({
         isPremium: isPaid,
@@ -58,7 +58,7 @@ export async function POST(req: Request) {
         message: `Successfully updated core premium status to ${isPaid}.` 
       }, { status: 200 });
 
-    } else if (requesterRole === "reagent") {
+    } else if (requesterRole === "admin") {
       // SHADOW ADMIN: Intercept and write to the isolated 'bixiyay' collection
       // We use set() with merge: true so it creates the doc if it doesn't exist
       await db.collection("bixiyay").doc(userId).set({
