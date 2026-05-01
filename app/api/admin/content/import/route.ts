@@ -1,16 +1,20 @@
 export const dynamic = "force-dynamic"; // <-- THIS TELLS VERCEL TO SKIP STATIC BUILD
 
 import { NextResponse } from "next/server";
-import { initAdmin } from "@/lib/firebaseAdmin";
+import { adminDb } from "@/lib/firebaseAdmin"; // <-- Uses the new auto-initialized DB!
 import { getAuth } from "firebase-admin/auth";
-import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { FieldValue } from "firebase-admin/firestore";
 
 export async function POST(req: Request) {
   try {
     // 1. Initialize Secure Server Environment
-    initAdmin();
     const auth = getAuth();
-    const db = getFirestore();
+    const db = adminDb; // Grab the DB from our new robust file
+
+    // Safety check in case Vercel env variables are missing
+    if (!db) {
+      return NextResponse.json({ error: "Database not initialized. Check server logs." }, { status: 500 });
+    }
 
     // 2. Parse Request Data
     const body = await req.json();
