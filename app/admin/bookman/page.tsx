@@ -241,9 +241,9 @@ export default function BookManagementPage() {
                   className="w-full pl-12 pr-4 py-3 rounded-2xl bg-white dark:bg-white/5 border border-black/5 dark:border-white/10 outline-none focus:ring-2 focus:ring-[#0164E5] transition"
                 />
               </div>
-              <button onClick={() => resetForm()} className="w-full md:w-auto px-6 py-3 bg-gradient-to-r from-[#0164E5] to-[#00C6FF] text-white rounded-2xl font-bold shadow-lg shadow-blue-500/30 hover:opacity-90 transition flex items-center justify-center gap-2">
-                <Plus size={20} /> Add New Book
-              </button>
+            <button onClick={() => { resetForm(); setView("form"); }} className="w-full md:w-auto px-6 py-3 bg-gradient-to-r from-[#0164E5] to-[#00C6FF] text-white rounded-2xl font-bold shadow-lg shadow-blue-500/30 hover:opacity-90 transition flex items-center justify-center gap-2">
+  <Plus size={20} /> Add New Book
+</button>
             </div>
 
             {/* Data Grid */}
