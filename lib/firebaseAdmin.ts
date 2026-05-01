@@ -1,35 +1,40 @@
-import * as admin from "firebase-admin";
+import * as admin from 'firebase-admin';
 
-export function initAdmin() {
-  // 1. If Firebase Admin is already initialized, don't do it again
-  if (admin.apps.length > 0) {
-    return admin.app();
-  }
+// 1. Check if variables exist
+const projectId = process.env.FIREBASE_PROJECT_ID;
+const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+const privateKey = process.env.FIREBASE_PRIVATE_KEY;
 
-  // 2. BUILD-PROOF SHIELD: If Vercel is building the app, environment variables 
-  // might be missing. We exit gracefully instead of crashing the build.
-  if (!process.env.FIREBASE_PROJECT_ID || !process.env.FIREBASE_PRIVATE_KEY) {
-    console.warn("Firebase Admin variables missing. Skipping initialization during build.");
-    return null;
-  }
-
-  // 3. Initialize normally for actual live user requests
-  admin.initializeApp({
-    credential: admin.credential.cert({
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      // This replace regex fixes Vercel's habit of breaking private key line breaks
-      privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-    }),
-  });
-
-  return admin.app();
+if (!projectId || !clientEmail || !privateKey) {
+  console.error(`
+    🚨 FIREBASE ADMIN INIT FAILED! 🚨
+    Missing Environment Variables:
+    PROJECT_ID: ${!!projectId}
+    CLIENT_EMAIL: ${!!clientEmail}
+    PRIVATE_KEY: ${!!privateKey}
+  `);
 }
 
-// 4. Actually run the initialization!
-initAdmin();
+// 2. Initialize App
+if (!admin.apps.length && projectId && clientEmail && privateKey) {
+  try {
+    // Format the private key safely for both Localhost and Vercel
+    const formattedKey = privateKey.replace(/\\n/g, '\n');
+    
+    admin.initializeApp({
+      credential: admin.credential.cert({
+        projectId,
+        clientEmail,
+        privateKey: formattedKey,
+      }),
+    });
+    console.log("✅ Firebase Admin Initialized Successfully!");
+  } catch (error) {
+    console.error("🚨 Firebase Admin Initialization Error:", error);
+  }
+}
 
-// 5. Safely export the services. 
-// (If Vercel skipped initialization during build, we export a safe fallback to prevent crashes)
-export const adminDb = admin.apps.length > 0 ? admin.firestore() : null as any;
-export const adminMessaging = admin.apps.length > 0 ? admin.messaging() : null as any;
+// 3. Export Database and Messaging
+// If it fails to initialize, this will explicitly tell your API route to throw a proper error
+export const adminDb = admin.apps.length ? admin.firestore() : null;
+export const adminMessaging = admin.apps.length ? admin.messaging() : null;
