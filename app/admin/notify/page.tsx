@@ -61,7 +61,7 @@ export default function AdminNotifyPage() {
 
     try {
       // Calls our custom Next.js API route instead of a Cloud Function
-      const response = await fetch('/api/notify', {
+      const response = await fetch('/api/admin/notify', {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
