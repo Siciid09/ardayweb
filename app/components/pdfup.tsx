@@ -3,7 +3,7 @@
 import React, { useState, useRef } from "react";
 import { 
   UploadCloud, Trash2, Pencil, Check, X, 
-  Sparkles, Loader2, FileText, ChevronLeft, ChevronRight, Save
+  Sparkles, Loader2, ChevronLeft, ChevronRight, Save, Crop, RotateCcw
 } from "lucide-react";
 import { Document, Page, pdfjs } from 'react-pdf';
 import { PDFDocument } from 'pdf-lib';
@@ -18,6 +18,14 @@ interface SmartEditorProps {
   onComplete: (processedFile: File) => void;
 }
 
+// Coordinate interface for our Crop Box (Percentages 0 to 1)
+interface CropCoords {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
 export default function SmartPdfEditor({ onComplete }: SmartEditorProps) {
   const [file, setFile] = useState<File | null>(null);
   const [numPages, setNumPages] = useState<number>(0);
@@ -28,9 +36,15 @@ export default function SmartPdfEditor({ onComplete }: SmartEditorProps) {
   const [drawings, setDrawings] = useState<{ [key: number]: string }>({});
   const [drawingImages, setDrawingImages] = useState<{ [key: number]: string }>({});
   
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [viewMode, setViewMode] = useState<"grid" | "edit">("grid");
+  // ==========================================
+  // CROP STATE & REFS
+  // ==========================================
+  const [viewMode, setViewMode] = useState<"grid" | "edit" | "crop">("grid");
+  const [cropBox, setCropBox] = useState<CropCoords | null>(null);
+  const [isDraggingCrop, setIsDraggingCrop] = useState(false);
+  const cropContainerRef = useRef<HTMLDivElement>(null);
 
+  const [isProcessing, setIsProcessing] = useState(false);
   const canvasRef = useRef<any>(null);
 
   // --- Handlers ---
@@ -42,17 +56,16 @@ export default function SmartPdfEditor({ onComplete }: SmartEditorProps) {
       setExcludedPages(new Set());
       setDrawings({});
       setDrawingImages({});
+      setCropBox(null);
       setViewMode("grid");
     }
   };
 
   const saveCurrentDrawing = () => {
     if (canvasRef.current) {
-      // 1. Save JSON for the UI to remember strokes if you switch pages back and forth
       const data = canvasRef.current.getSaveData();
       setDrawings(prev => ({ ...prev, [activePage]: data }));
 
-      // 2. Extract the transparent PNG of the strokes to stamp on the final PDF
       try {
         const drawingCanvas = canvasRef.current.canvas.drawing;
         const dataUrl = drawingCanvas.toDataURL("image/png");
@@ -74,34 +87,85 @@ export default function SmartPdfEditor({ onComplete }: SmartEditorProps) {
     setExcludedPages(newSet);
   };
 
-  // --- Core Processing Engine (Cut & Draw) ---
+  // ==========================================
+  // CROP MOUSE EVENTS
+  // ==========================================
+  const handleCropMouseDown = (e: React.MouseEvent) => {
+    if (!cropContainerRef.current) return;
+    const rect = cropContainerRef.current.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top) / rect.height;
+    setCropBox({ x1: x, y1: y, x2: x, y2: y });
+    setIsDraggingCrop(true);
+  };
+
+  const handleCropMouseMove = (e: React.MouseEvent) => {
+    if (!isDraggingCrop || !cropContainerRef.current || !cropBox) return;
+    const rect = cropContainerRef.current.getBoundingClientRect();
+    // Clamp to boundaries (0 to 1)
+    const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const y = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+    setCropBox({ ...cropBox, x2: x, y2: y });
+  };
+
+  const handleCropMouseUp = () => {
+    setIsDraggingCrop(false);
+    if (cropBox) {
+      // Normalize box coordinates so x1 is always left, y1 is always top
+      const finalBox = {
+        x1: Math.min(cropBox.x1, cropBox.x2),
+        y1: Math.min(cropBox.y1, cropBox.y2),
+        x2: Math.max(cropBox.x1, cropBox.x2),
+        y2: Math.max(cropBox.y1, cropBox.y2),
+      };
+      
+      // If the user just clicked without dragging (tiny box), clear it
+      if (finalBox.x2 - finalBox.x1 < 0.05 || finalBox.y2 - finalBox.y1 < 0.05) {
+        setCropBox(null);
+      } else {
+        setCropBox(finalBox);
+      }
+    }
+  };
+
+  // Helper to draw the crop box UI dynamically
+  const getCropStyle = () => {
+    if (!cropBox) return {};
+    const x1 = Math.min(cropBox.x1, cropBox.x2);
+    const y1 = Math.min(cropBox.y1, cropBox.y2);
+    const width = Math.abs(cropBox.x2 - cropBox.x1);
+    const height = Math.abs(cropBox.y2 - cropBox.y1);
+    return {
+      left: `${x1 * 100}%`,
+      top: `${y1 * 100}%`,
+      width: `${width * 100}%`,
+      height: `${height * 100}%`,
+    };
+  };
+
+  // --- Core Processing Engine (Cut, Draw & Crop) ---
 
   const handleExport = async () => {
     if (!file) return;
     setIsProcessing(true);
     
-    // Save the canvas if the user didn't click the "Save Drawing" button before exporting
     if (viewMode === "edit") saveCurrentDrawing(); 
 
     try {
       const arrayBuffer = await file.arrayBuffer();
       const pdfDoc = await PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
       
-      // STEP A: Stamp all drawings onto their respective pages
+      // STEP A: Stamp all drawings
       for (const [pageStr, dataUrl] of Object.entries(drawingImages)) {
         const pageNum = parseInt(pageStr);
-        
-        // Skip stamping if we are going to delete this page anyway
         if (excludedPages.has(pageNum - 1)) continue;
 
         const pngImageBytes = await fetch(dataUrl).then((res) => res.arrayBuffer());
         const pngImage = await pdfDoc.embedPng(pngImageBytes);
 
-        // pdf-lib is 0-indexed, so page 1 is index 0
         const page = pdfDoc.getPage(pageNum - 1);
         const { width, height } = page.getSize();
 
-        // Paint the drawing layer perfectly over the original PDF page
         page.drawImage(pngImage, {
           x: 0,
           y: 0,
@@ -110,13 +174,33 @@ export default function SmartPdfEditor({ onComplete }: SmartEditorProps) {
         });
       }
 
-      // STEP B: Physically remove the excluded pages (Sort descending is critical!)
+      // STEP B: Apply Global Crop (Smart Coordinate Inversion)
+      if (cropBox) {
+        const pages = pdfDoc.getPages();
+        pages.forEach((page, index) => {
+          // Don't waste time cropping a page we are about to delete
+          if (!excludedPages.has(index)) {
+            const { width, height } = page.getSize();
+            
+            // Web coordinates (Top-Left) to Physical PDF coordinates (Bottom-Left)
+            const pdfWidth = width * (cropBox.x2 - cropBox.x1);
+            const pdfHeight = height * (cropBox.y2 - cropBox.y1);
+            const pdfX = width * cropBox.x1;
+            // Invert the Y axis!
+            const pdfY = height - (height * cropBox.y2); 
+
+            page.setCropBox(pdfX, pdfY, pdfWidth, pdfHeight);
+          }
+        });
+      }
+
+      // STEP C: Physically remove the excluded pages (Sort descending is critical!)
       const indicesToRemove = Array.from(excludedPages).sort((a, b) => b - a);
       indicesToRemove.forEach(index => {
         pdfDoc.removePage(index);
       });
 
-      // STEP C: Package file and send to Step 2
+      // STEP D: Package file and send to Step 2
       const pdfBytes = await pdfDoc.save();
       const processedFile = new File([pdfBytes.buffer as ArrayBuffer], file.name, { 
         type: 'application/pdf' 
@@ -143,28 +227,45 @@ export default function SmartPdfEditor({ onComplete }: SmartEditorProps) {
             <UploadCloud className="w-10 h-10 text-indigo-400" />
           </div>
           <h2 className="text-2xl font-black text-white">Production PDF Engine</h2>
-          <p className="text-slate-500 font-bold mt-2">Upload multi-page documents to cut and annotate</p>
+          <p className="text-slate-500 font-bold mt-2">Upload multi-page documents to cut, draw, and crop</p>
           <input type="file" className="hidden" accept=".pdf" onChange={handleFileChange} />
         </label>
       ) : (
         <>
           {/* Header Bar */}
-          <div className="p-4 bg-slate-800/40 border-b border-slate-800 flex items-center justify-between backdrop-blur-md">
-            <div className="flex items-center gap-4">
+          <div className="p-4 bg-slate-800/40 border-b border-slate-800 flex flex-wrap items-center justify-between backdrop-blur-md gap-4">
+            
+            {/* View Mode Toggles */}
+            <div className="flex bg-slate-900 rounded-xl p-1 shadow-inner border border-slate-800">
               <button 
-                onClick={() => setViewMode(viewMode === "grid" ? "edit" : "grid")}
-                className="px-5 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-sm"
+                onClick={() => { if(viewMode==="edit") saveCurrentDrawing(); setViewMode("grid"); }}
+                className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${viewMode === "grid" ? "bg-slate-700 text-white shadow-sm" : "text-slate-500 hover:text-slate-300"}`}
               >
-                {viewMode === "grid" ? "Switch to Editor" : "Back to Grid"}
+                Grid View
               </button>
-              <div className="h-6 w-px bg-slate-700 mx-2" />
+              <button 
+                onClick={() => { setViewMode("edit"); setActivePage(1); }}
+                className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${viewMode === "edit" ? "bg-indigo-500 text-white shadow-sm" : "text-slate-500 hover:text-slate-300"}`}
+              >
+                <Pencil className="w-3 h-3" /> Draw
+              </button>
+              <button 
+                onClick={() => { if(viewMode==="edit") saveCurrentDrawing(); setViewMode("crop"); }}
+                className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${viewMode === "crop" ? "bg-emerald-500 text-white shadow-sm" : "text-slate-500 hover:text-slate-300"}`}
+              >
+                <Crop className="w-3 h-3" /> Global Crop
+              </button>
+            </div>
+
+            <div className="flex items-center gap-4">
               <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">
                 Selected: <span className="text-white text-sm">{numPages - excludedPages.size}</span> / {numPages} Pages
               </p>
+              <div className="h-6 w-px bg-slate-700" />
+              <button onClick={() => setFile(null)} className="p-2 text-slate-500 hover:text-red-400 transition-colors bg-slate-800/50 rounded-lg hover:bg-red-500/10">
+                <X className="w-5 h-5" />
+              </button>
             </div>
-            <button onClick={() => setFile(null)} className="p-2 text-slate-500 hover:text-red-400 transition-colors bg-slate-800/50 rounded-lg hover:bg-red-500/10">
-              <X className="w-5 h-5" />
-            </button>
           </div>
 
           {/* Main Workspace Area */}
@@ -173,45 +274,26 @@ export default function SmartPdfEditor({ onComplete }: SmartEditorProps) {
             {/* VIEW 1: GRID MODE (FOR CUTTING) */}
             {viewMode === "grid" && (
               <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
-                <Document 
-                  file={file} 
-                  onLoadSuccess={({ numPages }) => setNumPages(numPages)} 
-                  className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8"
-                >
+                <Document file={file} onLoadSuccess={({ numPages }) => setNumPages(numPages)} className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
                   {Array.from(new Array(numPages), (el, index) => (
                     <div key={`thumb_${index}`} className="relative group">
-                      
-                      {/* Interaction Overlay */}
                       <div className={`absolute inset-0 z-20 rounded-2xl flex flex-col items-center justify-center gap-3 transition-all duration-300 ${excludedPages.has(index) ? 'bg-red-500/20 border-2 border-red-500/50 backdrop-blur-[2px]' : 'bg-transparent group-hover:bg-[#0B1120]/60'}`}>
-                        <button 
-                          onClick={() => enterEditMode(index + 1)}
-                          className={`p-3 bg-white text-slate-900 rounded-xl shadow-xl transition-all hover:scale-110 ${excludedPages.has(index) ? 'hidden' : 'opacity-0 group-hover:opacity-100 scale-95'}`}
-                        >
-                          <Pencil className="w-5 h-5" />
-                        </button>
-                        <button 
-                          onClick={() => togglePageRemoval(index)}
-                          className={`p-3 rounded-xl shadow-xl transition-all hover:scale-110 ${excludedPages.has(index) ? 'bg-red-500 text-white scale-100' : 'bg-slate-800 text-white opacity-0 group-hover:opacity-100 scale-95 hover:bg-red-500'}`}
-                        >
+                        <button onClick={() => togglePageRemoval(index)} className={`p-3 rounded-xl shadow-xl transition-all hover:scale-110 ${excludedPages.has(index) ? 'bg-red-500 text-white scale-100' : 'bg-slate-800 text-white opacity-0 group-hover:opacity-100 scale-95 hover:bg-red-500'}`}>
                           {excludedPages.has(index) ? <Check className="w-5 h-5" /> : <Trash2 className="w-5 h-5" />}
                         </button>
                       </div>
-
-                      {/* PDF Thumbnail */}
                       <div className={`p-3 bg-slate-800/50 rounded-2xl shadow-lg border border-slate-700/50 transition-opacity ${excludedPages.has(index) ? 'opacity-30' : 'opacity-100'}`}>
                         <div className="bg-white rounded-lg overflow-hidden flex justify-center relative">
                           <Page pageNumber={index + 1} width={160} renderTextLayer={false} renderAnnotationLayer={false} />
-                          
-                          {/* Show a tiny pencil icon on the thumbnail if it has drawings! */}
                           {drawingImages[index + 1] && !excludedPages.has(index) && (
-                            <div className="absolute top-1 right-1 bg-amber-500 p-1 rounded-md shadow-md">
-                              <Pencil className="w-3 h-3 text-white" />
-                            </div>
+                            <div className="absolute top-1 right-1 bg-indigo-500 p-1 rounded-md shadow-md"><Pencil className="w-3 h-3 text-white" /></div>
+                          )}
+                          {cropBox && !excludedPages.has(index) && (
+                            <div className="absolute top-1 left-1 bg-emerald-500 p-1 rounded-md shadow-md"><Crop className="w-3 h-3 text-white" /></div>
                           )}
                         </div>
                         <p className="text-[10px] text-center mt-3 text-slate-400 font-black tracking-widest uppercase">PAGE {index + 1}</p>
                       </div>
-
                     </div>
                   ))}
                 </Document>
@@ -221,8 +303,6 @@ export default function SmartPdfEditor({ onComplete }: SmartEditorProps) {
             {/* VIEW 2: EDIT MODE (FOR DRAWING) */}
             {viewMode === "edit" && (
               <div className="flex-1 flex flex-col items-center overflow-hidden bg-slate-900/50">
-                
-                {/* Editor Navigation */}
                 <div className="w-full p-4 flex justify-between items-center bg-slate-800/30 border-b border-slate-800">
                    <div className="flex items-center gap-2">
                       <button onClick={() => { saveCurrentDrawing(); setActivePage(Math.max(1, activePage - 1)) }} className="p-2 text-slate-400 hover:text-white bg-slate-800 rounded-lg hover:bg-slate-700 transition-colors"><ChevronLeft className="w-5 h-5"/></button>
@@ -234,37 +314,81 @@ export default function SmartPdfEditor({ onComplete }: SmartEditorProps) {
                    </button>
                 </div>
                 
-                {/* The Canvas Area */}
                 <div className="flex-1 p-8 overflow-auto w-full flex justify-center custom-scrollbar">
                   <div className="relative shadow-2xl rounded-lg overflow-hidden h-[700px] w-[500px] bg-white ring-4 ring-slate-800">
-                    
-                    {/* Transparent Canvas (Top Layer) */}
                     <div className="absolute inset-0 z-20 cursor-crosshair">
                       <CanvasDraw 
-                        ref={canvasRef}
-                        brushColor="#ef4444" // Red ink
-                        brushRadius={2}
-                        canvasWidth={500}
-                        canvasHeight={700}
-                        hideGrid={true}
-                        backgroundColor="transparent"
-                        saveData={drawings[activePage] || ""}
-                        immediateLoading={true}
+                        ref={canvasRef} brushColor="#ef4444" brushRadius={2} canvasWidth={500} canvasHeight={700}
+                        hideGrid={true} backgroundColor="transparent" saveData={drawings[activePage] || ""} immediateLoading={true}
                       />
                     </div>
-
-                    {/* PDF Underlay (Bottom Layer - Unclickable) */}
                     <div className="absolute inset-0 z-10 pointer-events-none flex justify-center bg-white">
                       <Document file={file}>
-                        <Page 
-                          pageNumber={activePage} 
-                          width={500} 
-                          renderTextLayer={false} 
-                          renderAnnotationLayer={false} 
-                        />
+                        <Page pageNumber={activePage} width={500} renderTextLayer={false} renderAnnotationLayer={false} />
                       </Document>
                     </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
+            {/* VIEW 3: GLOBAL CROP MODE */}
+            {viewMode === "crop" && (
+              <div className="flex-1 flex flex-col items-center overflow-hidden bg-slate-900/50">
+                <div className="w-full p-4 flex justify-between items-center bg-slate-800/30 border-b border-slate-800">
+                   <div className="text-white font-bold flex items-center gap-2">
+                     <Crop className="w-5 h-5 text-emerald-400" /> Draw a box to crop ALL pages identically.
+                   </div>
+                   <div className="flex items-center gap-3">
+                     {cropBox && (
+                       <button onClick={() => setCropBox(null)} className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold transition-all text-sm">
+                         <RotateCcw className="w-4 h-4" /> Clear Crop
+                       </button>
+                     )}
+                     <button onClick={() => setViewMode("grid")} className="flex items-center gap-2 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold shadow-lg shadow-emerald-500/20 transition-all">
+                        <Check className="w-4 h-4" /> Done Cropping
+                     </button>
+                   </div>
+                </div>
+                
+                <div className="flex-1 p-8 overflow-auto w-full flex justify-center custom-scrollbar select-none">
+                  <div className="relative shadow-2xl rounded-lg overflow-hidden h-[700px] w-[500px] bg-white ring-4 ring-emerald-500/50">
+                    
+                    {/* The Crop Interaction Layer */}
+                    <div 
+                      ref={cropContainerRef}
+                      onMouseDown={handleCropMouseDown}
+                      onMouseMove={handleCropMouseMove}
+                      onMouseUp={handleCropMouseUp}
+                      onMouseLeave={handleCropMouseUp}
+                      className="absolute inset-0 z-30 cursor-crosshair"
+                    >
+                      {/* The Drawn Crop Box Visualizer */}
+                      {cropBox && (
+                        <div 
+                          className="absolute border-2 border-emerald-500 bg-emerald-500/10 shadow-[0_0_0_9999px_rgba(11,17,32,0.6)]"
+                          style={getCropStyle()}
+                        >
+                          <div className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full"></div>
+                          <div className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full"></div>
+                          <div className="absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full"></div>
+                          <div className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full"></div>
+                        </div>
+                      )}
+                      
+                      {!cropBox && !isDraggingCrop && (
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                          <p className="bg-slate-900/80 text-white px-4 py-2 rounded-lg font-bold text-sm tracking-widest uppercase">Click & Drag to Crop</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* PDF Underlay (Page 1 Used as Reference) */}
+                    <div className="absolute inset-0 z-10 pointer-events-none flex justify-center bg-white">
+                      <Document file={file}>
+                        <Page pageNumber={1} width={500} renderTextLayer={false} renderAnnotationLayer={false} />
+                      </Document>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -275,9 +399,11 @@ export default function SmartPdfEditor({ onComplete }: SmartEditorProps) {
           <div className="p-6 bg-slate-800/80 border-t border-slate-800 flex items-center justify-between backdrop-blur-xl z-30">
             <div>
               <p className="text-white font-black text-lg">Ready to Export</p>
-              <p className="text-xs text-slate-400 font-bold tracking-wide mt-1">
-                Burns drawings into PDF and removes deleted pages.
-              </p>
+              <div className="flex gap-2 mt-1">
+                <span className="text-xs bg-red-500/20 text-red-400 px-2 py-0.5 rounded font-bold">{excludedPages.size} Removed</span>
+                <span className="text-xs bg-indigo-500/20 text-indigo-400 px-2 py-0.5 rounded font-bold">{Object.keys(drawings).length} Drawn</span>
+                {cropBox && <span className="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-bold">Global Crop Applied</span>}
+              </div>
             </div>
             <button 
               onClick={handleExport}

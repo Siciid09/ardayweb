@@ -101,6 +101,8 @@ function AddEditContentForm() {
   // THIS HOLDS THE PDF FROM STEP 1
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [existingPdfUrl, setExistingPdfUrl] = useState<string | null>(null);
+  const [manualPdfUrl, setManualPdfUrl] = useState("");
+  const [isPdfUrlEditable, setIsPdfUrlEditable] = useState(false);
 
   // UI State
   const [isFetching, setIsFetching] = useState(false);
@@ -151,6 +153,7 @@ function AddEditContentForm() {
             
             setExistingCoverUrl(data.coverImageUrl || null);
             setExistingPdfUrl(data.pdfUrl || data.bookPdfUrl || null);
+            setManualPdfUrl(data.pdfUrl || data.bookPdfUrl || "");
             if (data.coverImageUrl) setCoverPreview(data.coverImageUrl);
           }
         } catch (err) {
@@ -194,7 +197,11 @@ function AddEditContentForm() {
       let finalPdfUrl = existingPdfUrl || "";
 
       if (coverImage) finalCoverUrl = await uploadFileToStorage(coverImage, "covers");
-      if (pdfFile) finalPdfUrl = await uploadFileToStorage(pdfFile, "pdfs"); // Uploads the Blob from Step 1
+      if (pdfFile) {
+        finalPdfUrl = await uploadFileToStorage(pdfFile, "pdfs");
+      } else if (manualPdfUrl) {
+        finalPdfUrl = manualPdfUrl;
+      }
 
       let payload: any = {
         grade: selectedGrade,
@@ -452,27 +459,19 @@ function AddEditContentForm() {
                 </label>
               </div>
 
-              {/* PDF State (Replaces normal upload) */}
+              {/* PDF State & Manual Link Input */}
               {contentType !== 'quiz' && (
-                <div>
-                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Smart PDF Document</label>
-                  <div className={`flex flex-col items-center justify-center w-full h-48 border-2 border-dashed rounded-2xl transition-all relative ${pdfFile || existingPdfUrl ? 'border-emerald-400 bg-emerald-50' : 'border-slate-300 bg-slate-50'}`}>
+                <div className="space-y-3">
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Smart PDF Document / Direct Link</label>
+                  <div className="flex items-center gap-2">
+                    <input type="url" value={manualPdfUrl} onChange={(e) => setManualPdfUrl(e.target.value)} disabled={!isPdfUrlEditable} placeholder="Firebase PDF Link will appear here..." className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-medium text-slate-600 disabled:opacity-60 disabled:bg-slate-100 transition-all" />
+                    <button type="button" onClick={() => manualPdfUrl && window.open(manualPdfUrl, "_blank")} className="px-4 py-3 bg-indigo-50 text-indigo-600 rounded-xl font-bold hover:bg-indigo-100 transition">View</button>
+                    <button type="button" onClick={() => setIsPdfUrlEditable(!isPdfUrlEditable)} className={`px-4 py-3 rounded-xl font-bold transition text-white ${isPdfUrlEditable ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-slate-800 hover:bg-slate-700'}`}>{isPdfUrlEditable ? "Save" : "Edit"}</button>
+                  </div>
+                  <div className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-2xl transition-all relative ${pdfFile || existingPdfUrl ? 'border-emerald-400 bg-emerald-50' : 'border-slate-300 bg-slate-50'}`}>
                     <div className="flex flex-col items-center justify-center text-center px-4">
-                      <div className={`w-12 h-12 rounded-full shadow-sm flex items-center justify-center mb-3 ${pdfFile || existingPdfUrl ? 'bg-emerald-500' : 'bg-white'}`}>
-                        {pdfFile || existingPdfUrl ? <Check className="w-6 h-6 text-white" /> : <FileType className="w-6 h-6 text-slate-400" />}
-                      </div>
-                      <p className={`text-sm font-bold ${pdfFile || existingPdfUrl ? 'text-emerald-700' : 'text-slate-700'}`}>
-                        {pdfFile ? pdfFile.name : (existingPdfUrl ? "PDF Already Uploaded" : "No PDF attached from Step 1")}
-                      </p>
-                      
-                      {/* Navigate back to Step 1 to alter the PDF */}
-                      <button
-                        type="button"
-                        onClick={() => setStep(1)}
-                        className="mt-3 px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-100 transition-colors shadow-sm"
-                      >
-                        {pdfFile || existingPdfUrl ? "Replace Document" : "Go back to Step 1"}
-                      </button>
+                      <p className={`text-sm font-bold ${pdfFile || existingPdfUrl ? 'text-emerald-700' : 'text-slate-700'}`}>{pdfFile ? pdfFile.name : (existingPdfUrl ? "PDF Already Uploaded" : "No PDF attached from Step 1")}</p>
+                      <button type="button" onClick={() => setStep(1)} className="mt-3 px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-100 transition-colors shadow-sm">{pdfFile || existingPdfUrl ? "Replace Document via Step 1" : "Go back to Step 1"}</button>
                     </div>
                   </div>
                 </div>
