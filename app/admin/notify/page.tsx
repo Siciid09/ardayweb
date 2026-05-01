@@ -1,4 +1,3 @@
-// app/admin/notify/page.jsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -6,6 +5,7 @@ import { auth, db } from "../../../lib/firebase"; // Make sure this points to yo
 import { doc, getDoc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { ShieldCheck, ShieldAlert, Send, ArrowLeft } from "lucide-react";
+import NotifyMan from "../../components/notman"; // <-- IMPORTED THE NEW COMPONENT
 
 export default function AdminNotifyPage() {
   const [title, setTitle] = useState("");
@@ -13,6 +13,9 @@ export default function AdminNotifyPage() {
   const [isLoadingAccess, setIsLoadingAccess] = useState(true);
   const [hasAccess, setHasAccess] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  
+  // <-- ADDED THIS STATE TO TRIGGER REFRESHES
+  const [refreshKey, setRefreshKey] = useState(0); 
 
   // =======================================================================
   // SECURITY & ACCESS CONTROL
@@ -77,6 +80,8 @@ export default function AdminNotifyPage() {
         alert("Alert-ka si guul ah ayaa loo diray!");
         setTitle("");
         setBody("");
+        // <-- TELL NOTIFYMAN TO REFRESH THE LIST INSTANTLY
+        setRefreshKey(prev => prev + 1); 
       } else {
         throw new Error(data.error || "Failed to send notification");
       }
@@ -199,6 +204,10 @@ export default function AdminNotifyPage() {
                 )}
               </button>
             </form>
+
+            {/* <-- INJECTED THE HISTORY MANAGER HERE --> */}
+            <NotifyMan refreshTrigger={refreshKey} />
+
           </div>
         )}
       </main>
