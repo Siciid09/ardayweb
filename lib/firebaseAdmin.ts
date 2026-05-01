@@ -49,4 +49,4 @@ if (!admin.apps.length && projectId && clientEmail && privateKey) {
 // 3. Export Database and Messaging
 // If it fails to initialize, this will explicitly tell your API route to throw a proper error
 export const adminDb = admin.apps.length ? admin.firestore() : null;
-export const adminMessaging = admin.apps.length ? admin.messaging() : null;s
+export const adminMessaging = admin.apps.length ? admin.messaging() : null;
