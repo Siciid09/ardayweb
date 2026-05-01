@@ -1,15 +1,18 @@
 export const dynamic = "force-dynamic"; // <-- ADDS THIS
 import { NextResponse } from "next/server";
-import { initAdmin } from "@/lib/firebaseAdmin";
+import { adminDb } from "@/lib/firebaseAdmin"; // <-- New smart DB
 import { getAuth } from "firebase-admin/auth";
-import { getFirestore } from "firebase-admin/firestore";
 
 export async function POST(req: Request) {
   try {
     // 1. Initialize Secure Server Environment
-    initAdmin();
     const auth = getAuth();
-    const db = getFirestore();
+    const db = adminDb;
+
+    // Safety check in case Vercel env variables are missing during build
+    if (!db) {
+      return NextResponse.json({ error: "Database not initialized" }, { status: 500 });
+    }
 
     // 2. Parse Request Data
     const body = await req.json();
