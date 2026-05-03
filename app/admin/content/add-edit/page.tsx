@@ -3,7 +3,7 @@
 import { auth, db } from "@/lib/firebase"; 
 import { onAuthStateChanged } from "firebase/auth";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { collection, addDoc, doc, getDoc, updateDoc, getDocs, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, doc, getDoc, updateDoc, getDocs, serverTimestamp, query, where } from "firebase/firestore";
 import { 
   ArrowLeft, FileType, CheckCircle2, 
   AlertCircle, Image as ImageIcon, Save, Check, Lock,
@@ -121,16 +121,37 @@ function AddEditContentForm() {
     }
   }, [editId, contentType]);
 
-  // Fetch subjects list
+  // Fetch subjects list based on selected grade and region
   useEffect(() => {
     if (['lesson', 'exam', 'quiz'].includes(contentType)) {
+      // Don't fetch if they haven't picked a grade and region yet
+      if (!selectedGrade || !selectedRegion) {
+        setSubjectsList([]); 
+        return;
+      }
+      
       const fetchSubjects = async () => {
-        const snap = await getDocs(collection(db, "subjects"));
-        setSubjectsList(snap.docs.map(doc => ({ id: doc.id, name: doc.data().name })));
+        try {
+          const q = query(
+            collection(db, "subjects"),
+            where("grade", "==", selectedGrade),
+            where("region", "==", selectedRegion)
+          );
+          const snap = await getDocs(q);
+          setSubjectsList(snap.docs.map(doc => ({ id: doc.id, name: doc.data().name })));
+          
+          // Optional: If the current selectedSubjectId is no longer in the new list, clear it
+          if (!snap.docs.find(doc => doc.id === selectedSubjectId)) {
+             setSelectedSubjectId("");
+          }
+        } catch (error) {
+          console.error("Error fetching filtered subjects:", error);
+        }
       };
+      
       fetchSubjects();
     }
-  }, [contentType]);
+  }, [contentType, selectedGrade, selectedRegion]);
 
   // Fetch existing data if editing
   useEffect(() => {
@@ -360,14 +381,14 @@ function AddEditContentForm() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Grade Level <span className="text-red-500">*</span></label>
-                <select required value={selectedGrade} onChange={(e) => setSelectedGrade(e.target.value)} className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-indigo-500/20 outline-none font-bold text-slate-700 transition-all">
+                <select required value={selectedGrade} onChange={(e) => { setSelectedGrade(e.target.value); setSelectedSubjectId(""); }} className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-indigo-500/20 outline-none font-bold text-slate-700 transition-all">
                   <option value="" disabled>Select Grade</option>
                   {GRADE_LEVELS.map(g => <option key={g} value={g}>{g}</option>)}
                 </select>
               </div>
               <div>
                 <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Region <span className="text-red-500">*</span></label>
-                <select required value={selectedRegion} onChange={(e) => setSelectedRegion(e.target.value)} className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-indigo-500/20 outline-none font-bold text-slate-700 transition-all">
+                <select required value={selectedRegion} onChange={(e) => { setSelectedRegion(e.target.value); setSelectedSubjectId(""); }} className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-indigo-500/20 outline-none font-bold text-slate-700 transition-all">
                   <option value="" disabled>Select Region</option>
                   {REGIONS.map(r => <option key={r} value={r}>{r}</option>)}
                 </select>
