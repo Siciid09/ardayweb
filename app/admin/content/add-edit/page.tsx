@@ -110,8 +110,8 @@ function AddEditContentForm() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
 
-  const GRADE_LEVELS = ['Form 4', 'Form 3', 'Form 2', 'Form 1', 'Grade 8', 'Grade 7', 'Grade 6'];
-  const REGIONS = ['Somaliland', 'Somalia', 'Puntland', 'Ethiopia', 'Banaadir'];
+  const [gradesList, setGradesList] = useState<{id: string, name: string}[]>([]);
+  const [regionsList, setRegionsList] = useState<{id: string, name: string}[]>([]);
   const targetCollection = contentType === "generalBooks" ? "generalBooks" : `${contentType}s`;
 
   // Smart Step Logic: If editing or creating a quiz, skip Step 1.
@@ -120,6 +120,22 @@ function AddEditContentForm() {
       setStep(2);
     }
   }, [editId, contentType]);
+
+  // Fetch Master Lists for Grades and Regions
+  useEffect(() => {
+    const fetchMasterLists = async () => {
+      try {
+        const gradesSnap = await getDocs(collection(db, "grades"));
+        setGradesList(gradesSnap.docs.map(doc => ({ id: doc.id, name: doc.data().name })));
+
+        const regionsSnap = await getDocs(collection(db, "regions"));
+        setRegionsList(regionsSnap.docs.map(doc => ({ id: doc.id, name: doc.data().name })));
+      } catch (error) {
+        console.error("Error fetching master lists:", error);
+      }
+    };
+    fetchMasterLists();
+  }, []);
 
   // Fetch subjects list based on selected grade and region
   useEffect(() => {
@@ -383,14 +399,14 @@ function AddEditContentForm() {
                 <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Grade Level <span className="text-red-500">*</span></label>
                 <select required value={selectedGrade} onChange={(e) => { setSelectedGrade(e.target.value); setSelectedSubjectId(""); }} className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-indigo-500/20 outline-none font-bold text-slate-700 transition-all">
                   <option value="" disabled>Select Grade</option>
-                  {GRADE_LEVELS.map(g => <option key={g} value={g}>{g}</option>)}
+                  {gradesList.map(g => <option key={g.id} value={g.name}>{g.name}</option>)}
                 </select>
               </div>
               <div>
                 <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Region <span className="text-red-500">*</span></label>
                 <select required value={selectedRegion} onChange={(e) => { setSelectedRegion(e.target.value); setSelectedSubjectId(""); }} className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-indigo-500/20 outline-none font-bold text-slate-700 transition-all">
                   <option value="" disabled>Select Region</option>
-                  {REGIONS.map(r => <option key={r} value={r}>{r}</option>)}
+                  {regionsList.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
                 </select>
               </div>
             </div>
