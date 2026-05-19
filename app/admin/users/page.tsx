@@ -8,7 +8,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { 
   Search, Users, ShieldAlert, Lock, AlertCircle,
   ArrowLeft, CreditCard, MessageCircle, Filter, 
-  CheckSquare, CheckCircle2, XCircle
+  CheckSquare, CheckCircle2, XCircle, MapPin, GraduationCap
 } from "lucide-react";
 
 // --- Interfaces ---
@@ -20,6 +20,8 @@ interface UserRecord {
   role: string;
   isPremium: boolean;
   isbixiyay: boolean;
+  grade: string;
+  region: string;
   createdAt: Date | null;
 }
 
@@ -42,6 +44,8 @@ export default function UserManagementPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterRole, setFilterRole] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
+  const [filterGrade, setFilterGrade] = useState("");
+  const [filterRegion, setFilterRegion] = useState("");
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [isUpdatingBulk, setIsUpdatingBulk] = useState(false);
 
@@ -84,7 +88,9 @@ export default function UserManagementPage() {
             phone: data.phone || "",
             role: data.role || "user",
             isPremium: data.isPremium || data.pro || false, 
-            isbixiyay: data.isbixiyay || false,             
+            isbixiyay: data.isbixiyay || false,
+            grade: data.grade || "Unassigned",
+            region: data.region || "Unassigned",
             createdAt: data.createdAt ? data.createdAt.toDate() : null,
           };
         });
@@ -102,7 +108,7 @@ export default function UserManagementPage() {
   }, [router]);
 
   // Reset selection on filter change
-  useEffect(() => setSelectedUsers([]), [searchQuery, filterRole, filterStatus]);
+  useEffect(() => setSelectedUsers([]), [searchQuery, filterRole, filterStatus, filterGrade, filterRegion]);
 
   // ==========================================
   // HANDLERS (The Shadow Logic Trick)
@@ -176,17 +182,32 @@ export default function UserManagementPage() {
     window.open(`https://wa.me/${cleanPhone}`, "_blank");
   };
 
+  // Calculate Demographics Stats dynamically from the users array
+  const gradeCounts = users.reduce((acc, user) => {
+    const g = user.grade;
+    acc[g] = (acc[g] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const regionCounts = users.reduce((acc, user) => {
+    const r = user.region;
+    acc[r] = (acc[r] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
   const filteredUsers = users.filter(u => {
     const matchSearch = u.email.toLowerCase().includes(searchQuery.toLowerCase()) || 
                         u.displayName.toLowerCase().includes(searchQuery.toLowerCase()) ||
                         u.id.toLowerCase().includes(searchQuery.toLowerCase());
     
     const matchRole = filterRole ? u.role === filterRole : true;
+    const matchGrade = filterGrade ? u.grade === filterGrade : true;
+    const matchRegion = filterRegion ? u.region === filterRegion : true;
     
     const paymentStatus = (currentAdminRole === "badmin" || currentAdminRole === "hoadmin") ? u.isPremium : u.isbixiyay;
     const matchStatus = filterStatus === "paid" ? paymentStatus : filterStatus === "unpaid" ? !paymentStatus : true;
 
-    return matchSearch && matchRole && matchStatus;
+    return matchSearch && matchRole && matchStatus && matchGrade && matchRegion;
   });
 
   const isAllSelected = filteredUsers.length > 0 && selectedUsers.length === filteredUsers.length;
@@ -281,6 +302,53 @@ export default function UserManagementPage() {
           <div className="relative z-10 w-16 h-16 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/20">
             <CreditCard className="w-8 h-8 text-white" />
           </div>
+        </div>
+      </div>
+
+      {/* Dynamic Horizontal Demographic Filters */}
+      <div className="mb-6 space-y-4">
+        {/* Grade Filters */}
+        <div className="flex gap-3 overflow-x-auto pb-2 items-center [&::-webkit-scrollbar]:hidden">
+          <div className="flex items-center text-sm font-black text-slate-400 uppercase tracking-widest shrink-0 mr-2">
+            <GraduationCap className="w-4 h-4 mr-2" /> Grades:
+          </div>
+          <button
+            onClick={() => setFilterGrade("")}
+            className={`shrink-0 px-4 py-2 rounded-xl border font-bold text-sm transition-all ${!filterGrade ? "bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-200" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`}
+          >
+            All Grades
+          </button>
+          {Object.entries(gradeCounts).sort((a, b) => b[1] - a[1]).map(([grade, count]) => (
+            <button
+              key={grade}
+              onClick={() => setFilterGrade(grade)}
+              className={`shrink-0 px-4 py-2 rounded-xl border font-bold text-sm transition-all flex items-center gap-2 ${filterGrade === grade ? "bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-200" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`}
+            >
+              {grade} <span className={`px-2 py-0.5 rounded-lg text-xs ${filterGrade === grade ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500"}`}>{count}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Region Filters */}
+        <div className="flex gap-3 overflow-x-auto pb-2 items-center [&::-webkit-scrollbar]:hidden">
+          <div className="flex items-center text-sm font-black text-slate-400 uppercase tracking-widest shrink-0 mr-2">
+            <MapPin className="w-4 h-4 mr-2" /> Regions:
+          </div>
+          <button
+            onClick={() => setFilterRegion("")}
+            className={`shrink-0 px-4 py-2 rounded-xl border font-bold text-sm transition-all ${!filterRegion ? "bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-200" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`}
+          >
+            All Regions
+          </button>
+          {Object.entries(regionCounts).sort((a, b) => b[1] - a[1]).map(([region, count]) => (
+            <button
+              key={region}
+              onClick={() => setFilterRegion(region)}
+              className={`shrink-0 px-4 py-2 rounded-xl border font-bold text-sm transition-all flex items-center gap-2 ${filterRegion === region ? "bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-200" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`}
+            >
+              {region} <span className={`px-2 py-0.5 rounded-lg text-xs ${filterRegion === region ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500"}`}>{count}</span>
+            </button>
+          ))}
         </div>
       </div>
 
@@ -413,7 +481,11 @@ export default function UserManagementPage() {
                         </div>
                         <div className="ml-4">
                           <div className="text-sm font-bold text-slate-900">{user.displayName}</div>
-                          <div className="text-xs text-slate-400 font-mono mt-0.5">ID: {user.id.substring(0, 8)}</div>
+                          <div className="text-xs text-slate-400 font-mono mt-0.5 mb-1.5">ID: {user.id.substring(0, 8)}</div>
+                          <div className="flex gap-2">
+                            <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">{user.grade}</span>
+                            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">{user.region}</span>
+                          </div>
                         </div>
                       </div>
                     </td>
