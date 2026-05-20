@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { auth, db } from "@/lib/firebase"; 
 import { onAuthStateChanged } from "firebase/auth";
-import { collection, getDocs, query, orderBy, doc, getDoc } from "firebase/firestore";
+import { collection, getDocs, query, orderBy, doc, getDoc, where } from "firebase/firestore";
 import { 
   FileText, 
   Search, 
@@ -47,6 +47,8 @@ export default function ExamsHubPage() {
   const [selectedRegion, setSelectedRegion] = useState<string>("all");
   
   // UI States
+  const [isPremiumUser, setIsPremiumUser] = useState(false);
+  const [paymentMode, setPaymentMode] = useState<"free" | "paid">("paid");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -65,8 +67,17 @@ export default function ExamsHubPage() {
         const userDoc = await getDoc(doc(db, "users", user.uid));
         if (userDoc.exists()) {
           const userData = userDoc.data();
+          setIsPremiumUser(userData.isPremium || userData.pro || false);
+          
           // Auto-set filters based on user's profile if they exist
-          if (userData.grade) setSelectedGrade(userData.grade);
+          if (userData.grade) {
+            setSelectedGrade(userData.grade);
+            const gradeQuery = query(collection(db, "grades"), where("name", "==", userData.grade));
+            const gradeSnap = await getDocs(gradeQuery);
+            if (!gradeSnap.empty && gradeSnap.docs[0].data().isFree === true) {
+              setPaymentMode("free");
+            }
+          }
           if (userData.region) setSelectedRegion(userData.region);
         }
 
@@ -299,10 +310,18 @@ export default function ExamsHubPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredExams.map((exam) => (
-              <Link 
-                href={`/exams/${exam.id}`} 
+              <div 
                 key={exam.id}
-                className="bg-white rounded-[2rem] shadow-sm hover:shadow-xl border border-slate-200 hover:border-blue-300 transition-all duration-300 group flex flex-col h-full overflow-hidden"
+                onClick={() => {
+                  if (isPremiumUser) {
+                    router.push(`/exams/${exam.id}`);
+                  } else if (paymentMode === "free") {
+                    router.push("/referral");
+                  } else {
+                    router.push("/subscription");
+                  }
+                }}
+                className="bg-white rounded-[2rem] shadow-sm hover:shadow-xl border border-slate-200 hover:border-blue-300 transition-all duration-300 group flex flex-col h-full overflow-hidden cursor-pointer"
               >
                 {/* --- 50% Cover Image Section --- */}
                 <div className="relative w-full h-48 sm:h-56 bg-gradient-to-br from-slate-100 to-blue-50 overflow-hidden shrink-0 border-b border-slate-100">
@@ -364,7 +383,7 @@ export default function ExamsHubPage() {
                     </div>
                   </div>
                 </div>
-              </Link>
+              </div>
             ))}
           </div>
         )}

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { db, auth } from "@/lib/firebase"; 
-import { doc, getDoc, collection, getDocs } from "firebase/firestore";
+import { doc, getDoc, collection, getDocs, query, where } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { 
   Book, Search, Lock, Unlock, AlertCircle, 
@@ -34,6 +34,7 @@ export default function LibraryPage() {
   
   // --- UI & Security State ---
   const [isPremium, setIsPremium] = useState(false);
+  const [paymentMode, setPaymentMode] = useState<"free" | "paid">("paid");
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -56,7 +57,14 @@ export default function LibraryPage() {
           setIsPremium(userData.isPremium || userData.pro || false);
           
           // Auto-set filters based on user's profile
-          if (userData.grade) setSelectedGrade(userData.grade);
+          if (userData.grade) {
+            setSelectedGrade(userData.grade);
+            const gradeQuery = query(collection(db, "grades"), where("name", "==", userData.grade));
+            const gradeSnap = await getDocs(gradeQuery);
+            if (!gradeSnap.empty && gradeSnap.docs[0].data().isFree === true) {
+              setPaymentMode("free");
+            }
+          }
           if (userData.region) setSelectedRegion(userData.region);
         }
 
@@ -97,6 +105,8 @@ export default function LibraryPage() {
     }
     if (isPremium) {
       router.push(`/library/${bookId}`);
+    } else if (paymentMode === "free") {
+      router.push("/referral");
     } else {
       setShowUpgradeModal(true);
     }
