@@ -1,278 +1,413 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { auth } from "@/lib/firebase"; // Adjust path to your firebase config
-import { onAuthStateChanged } from "firebase/auth";
+import { auth, db } from "@/lib/firebase";
+import { onAuthStateChanged, User } from "firebase/auth";
 import { 
-  ArrowLeft, 
-  CheckCircle2, 
-  Zap, 
-  BookOpen, 
-  Video, 
-  FileText, 
-  HelpCircle, 
-  Phone,
-  User,
-  Star,
-  ShieldCheck,
-  ChevronLeft
+  collection, query, where, getDocs, doc, runTransaction, 
+  onSnapshot, serverTimestamp, getDoc, updateDoc, addDoc
+} from "firebase/firestore";
+import { 
+  ShieldCheck, Unlock, AlertCircle, CheckCircle2, 
+  ArrowLeft, Copy, Share2, Award, Loader2, Lock,
+  Phone, CreditCard, Banknote
 } from "lucide-react";
 
-export default function SubscriptionPage() {
+export default function UpgradePage() {
   const router = useRouter();
 
-  // --- Auth State ---
-  const [userEmail, setUserEmail] = useState<string>("Email lama hayo");
-  
-  // --- Payment Form State ---
-  const [showConfirmForm, setShowConfirmForm] = useState(false);
-  const [phone, setPhone] = useState("");
-  const [name, setName] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  // --- CORE STATE ---
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [mode, setMode] = useState<"loading" | "free" | "paid">("loading");
+  const [price, setPrice] = useState<number>(2.0);
 
-  // Fetch logged-in user's email for the WhatsApp message
+  // --- REFERRAL (FREE) STATE ---
+  const [myCustomId, setMyCustomId] = useState("Loading...");
+  const [slots, setSlots] = useState<string[]>([]);
+  const [inputId, setInputId] = useState("");
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [isClaiming, setIsClaiming] = useState(false);
+  const [refMessage, setRefMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
+
+  // --- PAYMENT (PAID) STATE ---
+  const [paymentPhone, setPaymentPhone] = useState("");
+  const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
+  const [payMessage, setPayMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
+
+  // ==========================================
+  // 1. INITIALIZATION & DATABASE CHECK
+  // ==========================================
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user && user.email) {
-        setUserEmail(user.email);
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        setCurrentUser(user);
+        
+        let userRegion = "Somaliland";
+        let userGrade = "Form 4";
+
+        // A. Fetch User Data
+        const userRef = doc(db, "users", user.uid);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+          const data = userSnap.data();
+          if (data.customId) setMyCustomId(data.customId);
+          if (data.region) userRegion = data.region;
+          if (data.grade) userGrade = data.grade;
+        }
+
+        // B. Listen to Referral Progress (In case they are Free)
+        const progressRef = doc(db, "user_progress", user.uid);
+        const unsubscribeProgress = onSnapshot(progressRef, (docSnap) => {
+          if (docSnap.exists() && docSnap.data().slots) {
+            setSlots(docSnap.data().slots);
+          } else {
+            setSlots([]);
+          }
+        });
+
+        // C. Check FREE vs PAID logic (Just like the app)
+        let determinedMode: "free" | "paid" = "paid";
+        let fetchedPrice = 2.0;
+
+        try {
+          // Check Global Config
+          const pricingSnap = await getDoc(doc(db, "config", "pricing"));
+          if (pricingSnap.exists()) {
+             const pData = pricingSnap.data();
+             if (pData.premium_price) fetchedPrice = pData.premium_price;
+             if (pData.payment_mode === "free") determinedMode = "free";
+          }
+
+          // Check Region (Overrides global if free)
+          const regionQuery = query(collection(db, "regions"), where("name", "==", userRegion));
+          const regionDocs = await getDocs(regionQuery);
+          if (!regionDocs.empty) {
+             const rData = regionDocs.docs[0].data();
+             if (rData.paymentMode === "free" || rData.payment_mode === "free") determinedMode = "free";
+          }
+
+          // Check Grade (Overrides global/region if free)
+          const gradeQuery = query(collection(db, "grades"), where("name", "==", userGrade));
+          const gradeDocs = await getDocs(gradeQuery);
+          if (!gradeDocs.empty) {
+             const gData = gradeDocs.docs[0].data();
+             if (gData.paymentMode === "free" || gData.payment_mode === "free") determinedMode = "free";
+          }
+        } catch (e) {
+           console.error("Error fetching pricing details", e);
+        }
+
+        setPrice(fetchedPrice);
+        setMode(determinedMode);
+
+        return () => unsubscribeProgress();
+      } else {
+        router.push("/auth");
       }
     });
-    return () => unsubscribe();
-  }, []);
+    return () => unsubscribeAuth();
+  }, [router]);
 
-  // --- Payment Logic ---
-  const dialUSSD = (ussdCode: string) => {
-    // Encodes the # symbol for mobile browsers so it dials correctly
-    const encodedUssd = ussdCode.replace(/#/g, "%23");
-    window.open(`tel:${encodedUssd}`, "_self");
+
+  // ==========================================
+  // 2. REFERRAL (FREE) LOGIC
+  // ==========================================
+  const handleShare = async () => {
+    const shareText = `Fadlan soo degso app-ka ArdayCaawiye oo isku diwaangeli.\nMarkaad gasho, isii ID-gaaga (tusaale: ${myCustomId}) si aan ugu furto casharada!\n\nHalkan kala soo deg: https://play.google.com/store/apps/details?id=com.ardaycaawiye.app`;
+    if (navigator.share) {
+      try { await navigator.share({ title: "ArdayCaawiye", text: shareText }); } catch (e) {}
+    } else {
+      navigator.clipboard.writeText(shareText);
+      setRefMessage({ text: "Link copied to clipboard!", type: "success" });
+    }
   };
 
-  const handleWhatsAppSubmit = async (e: React.FormEvent) => {
+  const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
+    const cleanInput = inputId.trim().toLowerCase();
+    if (!cleanInput || !currentUser) return;
+    
+    if (cleanInput === myCustomId.toLowerCase()) {
+      setRefMessage({ text: "Ma isticmaali kartid ID-gaaga!", type: "error" });
+      return;
+    }
+    
+    setIsVerifying(true);
+    setRefMessage(null);
 
-    const message = `*XAQIIJINTA LACAG BIXINTA*\n\n*Emailka ardayga:* ${userEmail}\n*Magaca:* ${name}\n*Lacagta:* 43,000 SLShs ah\n*Lambarka laga soo diray:* ${phone}`;
-    
-    // Official WhatsApp API link strictly hardcoded to your number
-    const whatsappUrl = `https://wa.me/252633227084?text=${encodeURIComponent(message)}`;
-    
-    // Open WhatsApp in a new tab
-    window.open(whatsappUrl, "_blank");
-    
-    // Reset and route back to dashboard after a short delay
-    setTimeout(() => {
-      setIsSubmitting(false);
-      router.push("/dashboard");
-    }, 1500);
+    try {
+      const friendQuery = query(collection(db, "users"), where("customId", "==", cleanInput));
+      const friendSnap = await getDocs(friendQuery);
+
+      if (friendSnap.empty) throw new Error("ID-gan lama helin. Fadlan hubi.");
+
+      const resultMessage = await runTransaction(db, async (transaction) => {
+        const claimedRef = doc(db, "claimed_codes", cleanInput);
+        const claimedSnap = await transaction.get(claimedRef);
+        if (claimedSnap.exists()) throw new Error("Code-kan hore ayaa loo isticmaalay!");
+
+        const myProgressRef = doc(db, "user_progress", currentUser.uid);
+        const myProgressSnap = await transaction.get(myProgressRef);
+        let currentSlots: string[] = [];
+        if (myProgressSnap.exists() && myProgressSnap.data().slots) {
+          currentSlots = myProgressSnap.data().slots;
+        }
+
+        if (currentSlots.length >= 10) throw new Error("Hore ayaad u buuxisay 10-ka boos!");
+
+        transaction.set(claimedRef, { claimedBy: currentUser.uid, timestamp: serverTimestamp() });
+        const newSlots = [...currentSlots, cleanInput];
+        transaction.set(myProgressRef, { slots: newSlots }, { merge: true });
+
+        if (newSlots.length === 10) return "HAMBALYO! Waxaad buuxisay dhamaan boosaskii! Hadda furo Premium-ka.";
+        return `Waa Sax! Waxaa kuu haray ${10 - newSlots.length} boos.`;
+      });
+
+      setRefMessage({ text: resultMessage, type: "success" });
+      setInputId("");
+    } catch (error: any) {
+      setRefMessage({ text: error.message.replace("Error: ", ""), type: "error" });
+    } finally {
+      setIsVerifying(false);
+    }
   };
 
-  return (
-    <div className="min-h-screen bg-slate-50 pb-20 relative selection:bg-indigo-100 selection:text-indigo-900">
-      
-      {/* 1. Modern Header */}
-      <header className="bg-white/80 backdrop-blur-xl border-b border-slate-200 sticky top-0 z-40 shadow-sm">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center">
-          <button 
-            onClick={() => router.back()}
-            className="flex items-center text-slate-500 hover:text-indigo-600 font-bold transition-colors bg-slate-50 hover:bg-indigo-50 px-4 py-2 rounded-xl"
-          >
-            <ArrowLeft className="w-5 h-5 mr-2" />
-            Back
-          </button>
-        </div>
-      </header>
+  const handleClaimPremium = async () => {
+    if (!currentUser) return;
+    setIsClaiming(true);
+    setRefMessage(null);
+    try {
+      if (slots.length < 10) throw new Error("Wali maadan buuxin 10-ka boos!");
+      await updateDoc(doc(db, "users", currentUser.uid), { isPremium: true, premiumSource: "hunter_referral" });
+      localStorage.setItem("cached_isPremium", "true");
+      setRefMessage({ text: "Hambalyo! Waxaad hadda tahay Premium!", type: "success" });
+      setTimeout(() => router.push("/"), 2000);
+    } catch (error: any) {
+      setRefMessage({ text: error.message, type: "error" });
+    } finally {
+      setIsClaiming(false);
+    }
+  };
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        
-        {/* Title Section */}
-        <div className="text-center max-w-2xl mx-auto mb-16 animate-in fade-in slide-in-from-bottom-4 duration-700">
-          <div className="inline-flex items-center justify-center px-4 py-1.5 mb-6 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 font-bold text-sm uppercase tracking-widest">
-            <Star className="w-4 h-4 mr-2 fill-indigo-700" /> Arday Caawiye Premium
-          </div>
-          <h1 className="text-4xl md:text-5xl font-extrabold text-slate-900 tracking-tight mb-6 leading-tight">
-            Unlock your full <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-blue-500">academic potential</span>.
-          </h1>
-          <p className="text-lg text-slate-600 font-medium leading-relaxed">
-            Get unlimited access to video lessons, interactive quizzes, past examination papers, and our entire library of premium study materials.
-          </p>
-        </div>
 
-        {/* 2. Pricing/Feature Card Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-16 items-start">
-          
-          {/* Left Column: The Features */}
-          <div className="order-2 lg:order-1 space-y-8 animate-in fade-in slide-in-from-left-8 duration-700 delay-100">
-            <h2 className="text-2xl font-bold text-slate-800 mb-6">Everything you get with Pro:</h2>
-            
-            <div className="space-y-6">
-              <FeatureRow 
-                icon={<Video className="w-6 h-6 text-blue-500" />} 
-                title="Unlimited Video Lessons" 
-                desc="Watch all premium tutorial videos without any restrictions." 
-              />
-              <FeatureRow 
-                icon={<FileText className="w-6 h-6 text-emerald-500" />} 
-                title="Full Past Papers Archive" 
-                desc="Access years of past exams and official marking schemes/answers." 
-              />
-              <FeatureRow 
-                icon={<HelpCircle className="w-6 h-6 text-amber-500" />} 
-                title="Interactive Quiz Engine" 
-                desc="Test your knowledge with chapter-by-chapter interactive challenges." 
-              />
-              <FeatureRow 
-                icon={<BookOpen className="w-6 h-6 text-purple-500" />} 
-                title="Premium Digital Library" 
-                desc="Unlock exclusive study guides, summary notes, and extra reading books." 
-              />
-            </div>
-          </div>
+  // ==========================================
+  // 3. PAYMENT (PAID) LOGIC
+  // ==========================================
+  const handlePaymentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentUser || !paymentPhone.trim()) return;
+    setIsSubmittingPayment(true);
+    setPayMessage(null);
 
-          {/* Right Column: The Interactive Payment Card */}
-          <div className="order-1 lg:order-2 animate-in fade-in slide-in-from-right-8 duration-700">
-            <div className="bg-slate-900 rounded-[2rem] p-8 md:p-10 shadow-2xl relative overflow-hidden">
-              
-              {/* Background Glows */}
-              <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-indigo-500 rounded-full blur-[80px] opacity-40 pointer-events-none"></div>
-              <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-64 h-64 bg-blue-500 rounded-full blur-[80px] opacity-40 pointer-events-none"></div>
+    try {
+      await addDoc(collection(db, "payment_requests"), {
+         uid: currentUser.uid,
+         phone: paymentPhone,
+         amount: price,
+         status: "pending",
+         timestamp: serverTimestamp(),
+      });
+      setPayMessage({ text: "Dalabkaaga waa la diray. Dib ayaan kaaga soo xaqiijin doonaa.", type: "success" });
+      setPaymentPhone("");
+    } catch (error: any) {
+      setPayMessage({ text: "Cillad ayaa dhacday. Fadlan isku day markale.", type: "error" });
+    } finally {
+      setIsSubmittingPayment(false);
+    }
+  };
 
-              <div className="relative z-10 text-white">
-                
-                {!showConfirmForm ? (
-                  /* --- STATE 1: PAYMENT OPTIONS --- */
-                  <div className="animate-in fade-in zoom-in-95 duration-300">
-                    <div className="text-center">
-                      <Zap className="w-12 h-12 text-amber-400 mx-auto mb-6 drop-shadow-[0_0_15px_rgba(251,191,36,0.5)]" />
-                      <h3 className="text-3xl font-black mb-2">Pro Plan</h3>
-                      <p className="text-indigo-200 mb-6 font-medium">One-time payment for full curriculum access.</p>
-                      
-                      <div className="flex items-baseline justify-center mb-8">
-                        <span className="text-5xl font-black">$4</span>
-                        <span className="text-xl text-slate-400 ml-2 font-bold">/ 43,000 SLShs</span>
-                      </div>
-                    </div>
-
-                    <div className="space-y-4 mb-6">
-                      <button 
-                        onClick={() => dialUSSD("*220*0633227084*43000#")}
-                        className="w-full flex items-center justify-center py-4 bg-emerald-500 hover:bg-emerald-400 text-white rounded-2xl font-bold text-lg transition-colors shadow-lg shadow-emerald-500/20 group"
-                      >
-                        <Phone className="w-5 h-5 mr-3 group-hover:scale-110 transition-transform" /> Ku Bixi ZAAD
-                      </button>
-                      <button 
-                        onClick={() => dialUSSD("*220*0653227084*43000#")}
-                        className="w-full flex items-center justify-center py-4 bg-amber-500 hover:bg-amber-400 text-white rounded-2xl font-bold text-lg transition-colors shadow-lg shadow-amber-500/20 group"
-                      >
-                        <Phone className="w-5 h-5 mr-3 group-hover:scale-110 transition-transform" /> Ku Bixi E-DAHAB
-                      </button>
-                    </div>
-
-                    <button 
-                      onClick={() => setShowConfirmForm(true)}
-                      className="w-full py-4 text-indigo-400 font-bold hover:text-white hover:bg-white/10 rounded-2xl transition-colors"
-                    >
-                      Waan Bixiyay Lacagta
-                    </button>
-
-                    <p className="text-xs text-slate-400 mt-6 flex items-center justify-center">
-                      <ShieldCheck className="w-4 h-4 mr-1" /> Secure & trusted activation process.
-                    </p>
-                  </div>
-                ) : (
-                  /* --- STATE 2: WHATSAPP CONFIRMATION FORM --- */
-                  <div className="animate-in fade-in zoom-in-95 duration-300">
-                    <div className="flex items-center mb-8">
-                      <button 
-                        onClick={() => setShowConfirmForm(false)} 
-                        className="p-2 bg-white/10 rounded-full hover:bg-white/20 transition-colors"
-                      >
-                        <ChevronLeft className="w-5 h-5 text-white" />
-                      </button>
-                      <h3 className="text-2xl font-black ml-4">Xaqiiji Lacagta</h3>
-                    </div>
-
-                    <p className="text-indigo-200 font-medium mb-6 leading-relaxed">
-                      Fadlan geli xogta saxda ah si aan ugu dirno WhatsApp-ka oo akoonkaaga loogu furo.
-                    </p>
-
-                    <form onSubmit={handleWhatsAppSubmit} className="space-y-5">
-                      <div>
-                        <label className="block text-xs font-bold text-indigo-300 uppercase tracking-widest mb-2">
-                          Lambarka aad ka dirtay
-                        </label>
-                        <div className="relative">
-                          <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                          <input 
-                            required 
-                            type="tel" 
-                            value={phone} 
-                            onChange={(e) => setPhone(e.target.value)}
-                            placeholder="Tusaale: 063XXXXXXX"
-                            className="w-full pl-12 pr-4 py-4 bg-white/10 border border-white/20 rounded-2xl focus:ring-2 focus:ring-indigo-400 outline-none font-bold text-white placeholder:text-slate-500 transition-all"
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-indigo-300 uppercase tracking-widest mb-2">
-                          Magacaaga oo saddexan
-                        </label>
-                        <div className="relative">
-                          <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                          <input 
-                            required 
-                            type="text" 
-                            value={name} 
-                            onChange={(e) => setName(e.target.value)}
-                            placeholder="Geli magacaaga"
-                            className="w-full pl-12 pr-4 py-4 bg-white/10 border border-white/20 rounded-2xl focus:ring-2 focus:ring-indigo-400 outline-none font-bold text-white placeholder:text-slate-500 transition-all"
-                          />
-                        </div>
-                      </div>
-
-                      <button 
-                        type="submit" 
-                        disabled={isSubmitting}
-                        className="w-full mt-6 py-4 bg-indigo-500 hover:bg-indigo-400 text-white rounded-2xl font-bold text-lg transition-all shadow-lg shadow-indigo-500/30 flex items-center justify-center disabled:opacity-70"
-                      >
-                        {isSubmitting ? (
-                          <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        ) : (
-                          <>Xaqiiji & Dir WhatsApp</>
-                        )}
-                      </button>
-                    </form>
-                  </div>
-                )}
-
-              </div>
-            </div>
-          </div>
-
-        </div>
-      </main>
-    </div>
-  );
-}
-
-// --- Helper UI Component ---
-function FeatureRow({ icon, title, desc }: { icon: React.ReactNode, title: string, desc: string }) {
-  return (
-    <div className="flex items-start">
-      <div className="shrink-0 mt-1">
-        <div className="w-12 h-12 bg-white rounded-2xl shadow-sm border border-slate-100 flex items-center justify-center">
-          {icon}
-        </div>
+  // ==========================================
+  // UI RENDERERS
+  // ==========================================
+  if (mode === "loading") {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+         <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
       </div>
-      <div className="ml-5">
-        <h3 className="text-xl font-bold text-slate-800 mb-1 flex items-center">
-          {title}
-          <CheckCircle2 className="w-5 h-5 text-indigo-600 ml-2" />
-        </h3>
-        <p className="text-slate-600 leading-relaxed font-medium">
-          {desc}
-        </p>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-900 flex flex-col justify-center items-center p-4 relative overflow-hidden">
+      {/* Background glow effects matching app */}
+      <div className="absolute top-0 right-0 w-96 h-96 bg-blue-600/20 rounded-full blur-[100px] pointer-events-none"></div>
+      <div className="absolute bottom-0 left-0 w-96 h-96 bg-purple-600/20 rounded-full blur-[100px] pointer-events-none"></div>
+
+      <div className="w-full max-w-lg relative z-10 space-y-6">
+        
+        {/* Universal Header */}
+        <div className="flex items-center mb-8">
+          <button onClick={() => router.back()} className="text-white/70 hover:text-white mr-4">
+            <ArrowLeft className="w-6 h-6" />
+          </button>
+          <div className="flex-1 text-center pr-10">
+            <h1 className="text-3xl font-black text-white">Premium Access</h1>
+            <p className="text-white/60 text-sm mt-1">Furo dhammaan casharada iyo imtixaanada</p>
+          </div>
+        </div>
+
+        {/* ============================================================== */}
+        {/* PAID UI (ZAAD/SAHAL) */}
+        {/* ============================================================== */}
+        {mode === "paid" && (
+          <div className="bg-white/10 backdrop-blur-xl border border-white/20 p-6 rounded-3xl animate-in fade-in zoom-in duration-500">
+            <div className="flex items-center justify-center w-16 h-16 bg-blue-500/20 rounded-2xl mb-4 mx-auto">
+              <CreditCard className="w-8 h-8 text-blue-400" />
+            </div>
+            <h2 className="text-2xl font-black text-white text-center mb-2">Bixi Isdiiwaangelinta</h2>
+            <p className="text-white/70 text-center mb-6 text-sm">Fadlan bixi lacagta isdiiwaangelinta si aad u hesho dhammaan adeegyada.</p>
+            
+            <div className="bg-black/20 border border-white/5 p-4 rounded-2xl mb-6">
+               <div className="flex justify-between items-center mb-4">
+                  <span className="text-white/60 font-bold">Qiimaha:</span>
+                  <span className="text-2xl font-black text-green-400">${price}</span>
+               </div>
+               <hr className="border-white/10 my-3" />
+               <p className="text-xs text-white/50 font-bold mb-3 uppercase tracking-wider">Ku dir lacagta nambaradan:</p>
+               <div className="space-y-3">
+                 <div className="flex justify-between items-center bg-white/5 p-3 rounded-xl">
+                    <span className="text-blue-300 font-bold flex items-center"><Banknote className="w-4 h-4 mr-2"/> Zaad / Sahal:</span> 
+                    <span className="font-mono font-black text-white tracking-widest">063 400 0000</span>
+                 </div>
+                 <div className="flex justify-between items-center bg-white/5 p-3 rounded-xl">
+                    <span className="text-yellow-400 font-bold flex items-center"><Banknote className="w-4 h-4 mr-2"/> EVC Plus:</span> 
+                    <span className="font-mono font-black text-white tracking-widest">061 400 0000</span>
+                 </div>
+               </div>
+            </div>
+
+            <form onSubmit={handlePaymentSubmit} className="space-y-4">
+               <div>
+                  <label className="block text-sm font-bold text-white mb-2">Nambarka aad lacagta ka dirtay:</label>
+                  <div className="relative">
+                    <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
+                    <input 
+                      type="text" 
+                      value={paymentPhone} 
+                      onChange={e=>setPaymentPhone(e.target.value)} 
+                      required 
+                      placeholder="Tusaale: 063XXXXXXX" 
+                      className="w-full pl-11 pr-4 py-4 bg-black/30 border border-white/10 rounded-2xl text-white font-bold placeholder:text-white/30 focus:ring-2 focus:ring-blue-500 outline-none" 
+                    />
+                  </div>
+               </div>
+               <button 
+                  type="submit" 
+                  disabled={isSubmittingPayment || !paymentPhone.trim()} 
+                  className="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black text-lg flex items-center justify-center transition-all disabled:opacity-50"
+               >
+                  {isSubmittingPayment ? <Loader2 className="w-6 h-6 animate-spin" /> : "Xaqiiji Bixinta"}
+               </button>
+            </form>
+
+            {payMessage && (
+              <div className={`mt-4 p-4 rounded-xl flex items-start text-sm font-bold ${
+                payMessage.type === "success" ? "bg-green-500/20 text-green-300" : "bg-red-500/20 text-red-300"
+              }`}>
+                {payMessage.type === "success" ? <CheckCircle2 className="w-5 h-5 mr-3 shrink-0" /> : <AlertCircle className="w-5 h-5 mr-3 shrink-0" />}
+                <p>{payMessage.text}</p>
+              </div>
+            )}
+          </div>
+        )}
+
+
+        {/* ============================================================== */}
+        {/* FREE UI (REFERRAL / HUNTER MODEL) */}
+        {/* ============================================================== */}
+        {mode === "free" && (
+          <div className="space-y-6 animate-in fade-in zoom-in duration-500">
+            {/* Share Section */}
+            <div className="bg-white/10 backdrop-blur-xl border border-white/20 p-6 rounded-3xl text-center">
+              <p className="text-xs font-black tracking-widest text-white/50 uppercase mb-4">Waxaad u dirtaa saaxiibadaa:</p>
+              <div className="flex items-center justify-center space-x-3 mb-6">
+                <Copy className="w-5 h-5 text-white/70" />
+                <span className="text-3xl font-black text-white tracking-widest uppercase">{myCustomId}</span>
+              </div>
+              <button 
+                onClick={handleShare}
+                className="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold flex items-center justify-center transition-colors"
+              >
+                <Share2 className="w-5 h-5 mr-2" /> Share Link & Instructions
+              </button>
+            </div>
+
+            {/* Grid Section */}
+            <div className="bg-white/10 backdrop-blur-xl border border-white/20 p-6 rounded-3xl">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-lg font-bold text-white">Heerkaaga</h2>
+                <div className={`px-4 py-1.5 rounded-full border font-black text-sm ${slots.length >= 10 ? 'bg-green-500/20 border-green-500 text-green-400' : 'bg-blue-500/20 border-blue-500 text-blue-400'}`}>
+                  {slots.length} / 10
+                </div>
+              </div>
+
+              <div className="grid grid-cols-5 gap-3 mb-6">
+                {Array.from({ length: 10 }).map((_, index) => {
+                  const isFilled = index < slots.length;
+                  return (
+                    <div 
+                      key={index} 
+                      className={`aspect-square rounded-xl flex items-center justify-center border-2 transition-all ${
+                        isFilled ? 'bg-white border-white shadow-[0_0_15px_rgba(255,255,255,0.4)]' : 'bg-white/5 border-white/20'
+                      }`}
+                    >
+                      {isFilled ? <CheckCircle2 className="w-6 h-6 text-blue-600" /> : <Lock className="w-5 h-5 text-white/30" />}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {slots.length >= 10 && (
+                <div className="mt-6 pt-6 border-t border-white/10 text-center">
+                  <p className="text-green-400 font-bold mb-4">Hambalyo! Waxaad buuxisay dhamaan 10-ka boos! 🎉</p>
+                  <button 
+                    onClick={handleClaimPremium}
+                    disabled={isClaiming}
+                    className="w-full py-4 bg-green-500 hover:bg-green-400 text-white rounded-2xl font-bold flex items-center justify-center shadow-[0_0_20px_rgba(34,197,94,0.4)] transition-colors disabled:opacity-70"
+                  >
+                    {isClaiming ? <Loader2 className="w-6 h-6 animate-spin" /> : <><Award className="w-6 h-6 mr-2" /> Furo Premium ka</>}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Input Section */}
+            <div className="bg-white/10 backdrop-blur-xl border border-white/20 p-6 rounded-3xl">
+              <label className="block text-sm font-bold text-white mb-3">Halkan Gali ID-ga Saaxiibkaa:</label>
+              <form onSubmit={handleVerify} className="flex gap-3">
+                <div className="relative flex-1">
+                  <ShieldCheck className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
+                  <input
+                    type="text"
+                    required
+                    placeholder="ST-XXXXXX"
+                    value={inputId}
+                    onChange={(e) => setInputId(e.target.value)}
+                    className="w-full pl-11 pr-4 py-4 bg-black/30 border-none rounded-2xl text-white font-bold placeholder:text-white/30 uppercase focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={isVerifying || !inputId.trim() || slots.length >= 10}
+                  className="px-8 py-4 bg-white text-blue-900 rounded-2xl font-black disabled:opacity-50 transition-opacity"
+                >
+                  {isVerifying ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : "Hubi"}
+                </button>
+              </form>
+
+              {refMessage && (
+                <div className={`mt-4 p-4 rounded-xl flex items-start text-sm font-bold ${
+                  refMessage.type === "success" ? "bg-green-500/20 text-green-300" : "bg-red-500/20 text-red-300"
+                }`}>
+                  {refMessage.type === "success" ? <CheckCircle2 className="w-5 h-5 mr-3 shrink-0" /> : <AlertCircle className="w-5 h-5 mr-3 shrink-0" />}
+                  <p>{refMessage.text}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   );
