@@ -277,16 +277,19 @@ export default function UpgradePage() {
                   </div>
                </div>
                <hr className="border-white/10 my-3" />
-               <p className="text-xs text-white/50 font-bold mb-3 uppercase tracking-wider">Ku dir lacagta nambaradan:</p>
+               <p className="text-xs text-white/50 font-bold mb-3 uppercase tracking-wider">Ku dir lacagta adoo garaacaya:</p>
                <div className="space-y-3">
                  <div className="flex justify-between items-center bg-white/5 p-3 rounded-xl">
                     <span className="text-blue-300 font-bold flex items-center"><Banknote className="w-4 h-4 mr-2"/> Zaad / Sahal:</span> 
-                    {/* Placeholder numbers - you can fetch these from DB later if you add them! */}
-                    <span className="font-mono font-black text-white tracking-widest">063 400 0000</span>
+                    <span className="font-mono font-black text-white tracking-widest">
+                      *880*0633227084*{price}#
+                    </span>
                  </div>
                  <div className="flex justify-between items-center bg-white/5 p-3 rounded-xl">
                     <span className="text-yellow-400 font-bold flex items-center"><Banknote className="w-4 h-4 mr-2"/> EVC Plus:</span> 
-                    <span className="font-mono font-black text-white tracking-widest">061 400 0000</span>
+                    <span className="font-mono font-black text-white tracking-widest">
+                      *712*0633227084*{price}#
+                    </span>
                  </div>
                </div>
             </div>
