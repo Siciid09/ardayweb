@@ -20,7 +20,10 @@ export default function UpgradePage() {
   // --- CORE STATE ---
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [mode, setMode] = useState<"loading" | "free" | "paid">("loading");
-  const [price, setPrice] = useState<number>(2.0);
+  
+  // Updated to strings to match your DB ("2" and "22000")
+  const [price, setPrice] = useState<string>("2");
+  const [slshPrice, setSlshPrice] = useState<string>("22000");
 
   // --- REFERRAL (FREE) STATE ---
   const [myCustomId, setMyCustomId] = useState("Loading...");
@@ -68,14 +71,20 @@ export default function UpgradePage() {
 
         // C. Check FREE vs PAID logic (Just like the app)
         let determinedMode: "free" | "paid" = "paid";
-        let fetchedPrice = 2.0;
+        let fetchedPrice = "2";
+        let fetchedSlsh = "22000";
 
         try {
-          // Check Global Config
-          const pricingSnap = await getDoc(doc(db, "config", "pricing"));
+          // --- REAL DB FETCH: collection "payment", document "2Ht3oVzdSAv77UzmMXax" ---
+          const pricingSnap = await getDoc(doc(db, "payment", "2Ht3oVzdSAv77UzmMXax"));
+          
           if (pricingSnap.exists()) {
              const pData = pricingSnap.data();
-             if (pData.premium_price) fetchedPrice = pData.premium_price;
+             
+             if (pData.dollar) fetchedPrice = pData.dollar;
+             if (pData.slsh) fetchedSlsh = pData.slsh;
+             
+             // If you ever add a "payment_mode" field to this document to make the whole app free
              if (pData.payment_mode === "free") determinedMode = "free";
           }
 
@@ -99,6 +108,7 @@ export default function UpgradePage() {
         }
 
         setPrice(fetchedPrice);
+        setSlshPrice(fetchedSlsh);
         setMode(determinedMode);
 
         return () => unsubscribeProgress();
@@ -204,7 +214,7 @@ export default function UpgradePage() {
       await addDoc(collection(db, "payment_requests"), {
          uid: currentUser.uid,
          phone: paymentPhone,
-         amount: price,
+         amount: price, // Now saves the "2" string correctly
          status: "pending",
          timestamp: serverTimestamp(),
       });
@@ -261,13 +271,17 @@ export default function UpgradePage() {
             <div className="bg-black/20 border border-white/5 p-4 rounded-2xl mb-6">
                <div className="flex justify-between items-center mb-4">
                   <span className="text-white/60 font-bold">Qiimaha:</span>
-                  <span className="text-2xl font-black text-green-400">${price}</span>
+                  <div className="text-right">
+                    <span className="text-2xl font-black text-green-400">${price}</span>
+                    <span className="text-sm font-bold text-white/50 ml-2">({slshPrice} SLSH)</span>
+                  </div>
                </div>
                <hr className="border-white/10 my-3" />
                <p className="text-xs text-white/50 font-bold mb-3 uppercase tracking-wider">Ku dir lacagta nambaradan:</p>
                <div className="space-y-3">
                  <div className="flex justify-between items-center bg-white/5 p-3 rounded-xl">
                     <span className="text-blue-300 font-bold flex items-center"><Banknote className="w-4 h-4 mr-2"/> Zaad / Sahal:</span> 
+                    {/* Placeholder numbers - you can fetch these from DB later if you add them! */}
                     <span className="font-mono font-black text-white tracking-widest">063 400 0000</span>
                  </div>
                  <div className="flex justify-between items-center bg-white/5 p-3 rounded-xl">
